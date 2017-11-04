@@ -1,0 +1,204 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Initial pipeline 
+
+Parameters:
+
+ 
+  environment:
+    Description: Development Envrionment Name
+    Type: String
+    Default: dev
+    AllowedValues:
+    - dev
+    - stage
+    - qa
+    - prod
+    
+  uniqueIdentifier:
+    Description: A unique identifier to associate who this pipeline is for
+    Type: String
+    Default: uniqueId
+    
+  allowSubnet:
+    Description: Subnet to limit access to
+    Type: String
+    Default: 10.0.1.0
+    
+  bucketIdentifier:
+    Description: Type of bucket to create
+    Type: String
+    Default: pipeline-artifact-store
+    AllowedValues:
+    - test2
+    - root
+    - pipeline-artifact-store
+    
+    
+  pipelineNotificationEmail:
+    Description: Email of user or distribution list to receive notifications from cloudformation pipeline
+    Type: String
+    
+
+Resources:
+
+  s3BucketStack:
+    Type: "AWS::CloudFormation::Stack"
+    Properties:
+      TemplateURL: "https://s3-us-west-2.amazonaws.com/nelsone-dev-root-us-west-2/cloudformation/s3.yml"
+      Parameters:
+        uniqueIdentifier: !Ref uniqueIdentifier
+        allowSubnet: !Ref allowSubnet
+        environment: !Ref environment
+        bucketIdentifier: !Ref bucketIdentifier
+      Tags:
+      - Key: CostCenter
+        Value: !Ref uniqueIdentifier
+              
+  codePipelineServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${uniqueIdentifier}-codePipelineService-Role
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          Effect: Allow
+          Principal:
+            Service: codepipeline.amazonaws.com
+          Action: "sts:AssumeRole"
+      Policies:
+      - PolicyName: !Sub ${uniqueIdentifier}-codePipelineServiceRole-policy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Resource:
+            - !Join [ "", [ "arn:aws:s3:::", !Join [ "-", [ !Ref uniqueIdentifier, !Ref bucketIdentifier, !Ref "AWS::Region" ]]]]
+            Effect: Allow
+            Action:
+            - s3:PutObject #does it really need this?
+            - s3:GetObject
+            - s3:GetObjectVersion
+            - s3:GetBucketVersioning
+          - Resource: 
+            - "*"
+            Effect: Allow
+            Action:
+            - cloudformation:*
+            - iam:PassRole
+            
+  codeRepositoryPipeline:
+    DependsOn: s3BucketStack
+    Type: AWS::CodeCommit::Repository
+    Properties:
+      RepositoryDescription: "This repository houses the CloudFormation template used to deploy all Cloudformation."
+      RepositoryName: !Sub ${uniqueIdentifier}-Pipeline-Repository
+      
+  codeRepositoryCloudFormation:
+    DependsOn: s3BucketStack
+    Type: AWS::CodeCommit::Repository
+    Properties:
+      RepositoryDescription: "This repository houses all cloudformation templates used by the Pipeline Repository template."
+      RepositoryName: !Sub ${uniqueIdentifier}-CloudFormation-Repository
+      
+  codepipelineSNS:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Sub ${uniqueIdentifier}-cloudformation-pipeline-alerts
+      TopicName: !Sub ${uniqueIdentifier}-cloudformation-pipeline-alerts
+      Subscription:
+        - Endpoint: !Ref pipelineNotificationEmail
+          Protocol: email
+          
+  CloudFormationPipeline:
+    DependsOn: codeRepositoryPipeline
+    Type: "AWS::CodePipeline::Pipeline"
+    Properties:
+      Name: !Sub ${uniqueIdentifier}-CloudFormation-Pipeline
+      ArtifactStore: 
+        Location: !Join [ "-", [ !Ref uniqueIdentifier, !Ref bucketIdentifier, !Ref "AWS::Region" ]]
+        Type: S3
+      RoleArn: !GetAtt codePipelineServiceRole.Arn
+      Stages:
+      - Name: Source
+        Actions:
+        - Name: Source
+          ActionTypeId:
+            Category: Source
+            Owner: AWS
+            Provider: CodeCommit
+            Version: 1
+          Configuration:
+            RepositoryName: !Ref codeRepositoryPipeline
+            BranchName: !Ref environment
+          OutputArtifacts:
+          - Name: source
+          RunOrder: 1
+      - Name: ChageSetReplace
+        Actions:
+        - Name: !Sub ${uniqueIdentifier}-CloudFormation-Pipeline
+          ActionTypeId:
+            Category: Deploy
+            Owner: AWS
+            Provider: CloudFormation
+            Version: 1
+          Configuration:
+            ActionMode: CHANGE_SET_REPLACE
+            Capabilities: CAPABILITY_IAM
+            ChangeSetName: !Sub ${uniqueIdentifier}-${environment}-CloudFormation-Pipeline
+            RoleArn: !GetAtt codePipelineServiceRole.Arn
+            StackName: !Sub ${uniqueIdentifier}-${environment}-CloudFormation-Pipeline
+            TemplatePath: !Sub "source::${uniqueIdentifier}-cloudformation-pipeline.yml"
+            TemplateConfiguration: !Sub "source::${uniqueIdentifier}-cloudformation-pipeline.json"
+          InputArtifacts:
+            - Name: source
+          RunOrder: 3
+      - Name: Approval
+        Actions:
+        - Name: Approval
+          ActionTypeId:
+            Category: Approval
+            Owner: AWS
+            Provider: Manual
+            Version: 1
+          Configuration:
+            CustomData: 'Do you want to execute a change set against the stack?'
+            NotificationArn: !Ref codepipelineSNS
+          RunOrder: 4
+      - Name: ExecuteChangeSet
+        Actions:
+        - Name: executeChangeSet
+          ActionTypeId:
+            Category: Deploy
+            Owner: AWS
+            Provider: CloudFormation
+            Version: 1
+          Configuration:
+            ActionMode: CHANGE_SET_EXECUTE   
+            ChangeSetName: !Sub ${uniqueIdentifier}-${environment}-CloudFormation-Pipeline
+            StackName: !Sub ${uniqueIdentifier}-${environment}-CloudFormation-Pipeline
+            
+            
+            
+Outputs:
+   codeRepositoryCloneUrlHttpPipeline:
+    Description: Code Repository CloneUrlHttp for Pipeline
+    Value: !GetAtt codeRepositoryPipeline.CloneUrlHttp
+    
+   codeRepositoryCloneUrlSshPipeline:
+    Description: Code Repository CloneUrlSsh for Pipeline
+    Value: !GetAtt codeRepositoryPipeline.CloneUrlSsh
+    
+   codeRepositoryCloneUrlHttpCloudFormation:
+    Description: Code Repository CloneUrlHttp for Pipeline
+    Value: !GetAtt codeRepositoryCloudFormation.CloneUrlHttp
+    
+   codeRepositoryCloneUrlSshCloudFormation:
+    Description: Code Repository CloneUrlSsh for CloudFormation
+    Value: !GetAtt codeRepositoryCloudFormation.CloneUrlSsh
+    
+   snsTopicArn:
+    Description: ARN for SNS topic
+    Value: !Ref codepipelineSNS
+
+
+

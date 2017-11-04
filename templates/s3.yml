@@ -1,0 +1,80 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Initial pipeline 
+
+Parameters:
+  environment:
+    Description: Development Envrionment Name
+    Type: String
+    Default: dev
+    AllowedValues:
+    - dev
+    - stage
+    - qa
+    - prod
+    
+  uniqueIdentifier:
+    Description: A unique identifier to associate who this pipeline is for
+    Type: String
+    Default: uniqueId
+    
+  allowSubnet:
+    Description: Subnet to limit access to
+    Type: String
+    Default: 10.0.1.0
+    
+  bucketIdentifier:
+    Description: Type of bucket to create
+    Type: String
+    Default: test2
+    AllowedValues:
+    - test2
+    - root
+    - pipeline-artifact-store
+    
+
+
+Resources:
+
+
+  s3ArtifactStoreBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Join [ "-", [!Ref uniqueIdentifier, !Ref bucketIdentifier, !Ref 'AWS::Region' ]]
+      Tags:
+      - {Key: CostCenter, Value: !Ref uniqueIdentifier}
+      
+      
+  s3ArtifactStoreBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref s3ArtifactStoreBucket
+      PolicyDocument:
+        Id: !Join [ "-", [ !Ref uniqueIdentifier, "s3-artifactStore-policy"]]
+        Version: "2012-10-17"
+        Statement:
+ #       We will uncomment this when we want to block to a specific subnet
+ #       - Sid: "Allow access only from this subnet"
+ #         Effect: "Allow"
+ #         Principal: "*"
+ #         Action: "s3:*"
+ #         Resource:
+ #         - !Sub arn:aws:s3:::${s3ArtifactStoreBucket/*
+ #         Condition:
+ #         - {IpAddress: {"aws:SourceIp":"10.0.0.0/8"
+        - Sid: "Deny Insecure Connections"
+          Effect: "Deny"
+          Principal: "*"
+          Action: "s3:*"
+          Resource:
+          - !Sub arn:aws:s3:::${s3ArtifactStoreBucket}/*
+          Condition: {Bool: {"aws:SecureTransport": "false"}}
+        - Sid: "Deny unencrypted upload (require --sse)"
+          Effect: "Deny"
+          Principal: "*"
+          Action: "s3:PutObject"
+          Resource:
+          - !Sub arn:aws:s3:::${s3ArtifactStoreBucket}/*
+          Condition: {StringNotEquals: {"s3:x-amz-server-side-encryption":"AWS256"}}
+          
+          
+          

@@ -1,0 +1,99 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: build out of ec2 instance
+
+
+
+# ami to test to: ami-e689729e
+
+
+
+Parameters:
+  
+  environment:
+    Description: Development Envrionment Name
+    Type: String
+    Default: dev
+    AllowedValues:
+    - dev
+    - stage
+    - qa
+    - prod
+    
+  uniqueIdentifier:
+    Description: A unique identifier to associate who this pipeline is for
+    Type: String
+    Default: uniqueId
+    
+  instanceType:
+    Description: Set the instance Type
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+    - t2.micro
+    - t2.small
+    - t2.medium
+    
+  keyPairName:
+    Description: keypair to use for ec2 instance
+    Type: String
+    
+  amiId:
+    Description: AMI to use for instance
+    Type: String
+    
+  disableAPITermination:
+    Description: Whether or not to disable API Termination
+    Type: String
+    
+  serverIdentifier:
+    Description: Identifier to append to instance name
+    Type: String
+    
+  vpcId:
+    Description: VPC id to place ec2 instance in
+    Type: String
+    Default: vpc-bbf2dadd
+
+    
+    
+    
+Resources:
+
+  ec2Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref amiId
+      KeyName: !Ref keyPairName
+      DisableApiTermination: !Ref disableAPITermination
+      InstanceType: !Ref instanceType
+      SecurityGroupIds:
+      - !Ref ec2InstanceSecurityGroup
+      Tags:
+      - Key: Name
+        Value: !Join [ "-" , [ !Ref uniqueIdentifier, serverIdentifier ]]
+      - Key: CostCenter
+        Value: !Ref uniqueIdentifier
+      UserData:
+        "Fn::Base64": !Sub
+        - |
+          #!/bin/bash -xe
+          yum isntall -y expect
+          yum install -y jq
+          yum update -y
+        
+        
+  ec2InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${uniqueIdentifier}-${serverIdentifier}-securityGroup
+      GroupDescription: Security Group for EC2 instance
+      VpcId: !Ref vpcId
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: '22'
+        ToPort: '22'
+        CidrIp: 0.0.0.0/0
+      Tags:
+      - Key: CostCenter
+        Value: !Ref uniqueIdentifier
+    
