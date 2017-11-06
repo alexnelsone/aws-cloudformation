@@ -127,7 +127,7 @@ Resources:
   redshiftClusterRole:
     Type: AWS::IAM::Role
     Properties:
-      AssumedPolicyDocument:
+      AssumePolicyDocument:
         Version: 2012-10-17
         Statement:
         - Effect: Allow
