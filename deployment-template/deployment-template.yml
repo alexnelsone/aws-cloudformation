@@ -1,0 +1,99 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Initial pipeline 
+
+Parameters:
+
+ 
+  environment:
+    Description: Development Envrionment Name
+    Type: String
+    Default: dev
+    AllowedValues:
+    - dev
+    - stage
+    - qa
+    - prod
+    
+  uniqueIdentifier:
+    Description: A unique identifier to associate who this pipeline is for
+    Type: String
+    Default: uniqueId
+    
+  allowSubnet:
+    Description: Subnet to limit access to
+    Type: String
+    Default: 10.0.1.0
+    
+  bucketIdentifier:
+    Description: Type of bucket to create
+    Type: String
+    Default: pipeline-artifact-store
+    AllowedValues:
+    - test2
+    - root
+    - pipeline-artifact-store
+    
+  instanceType:
+    Description: Set the instance Type
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+    - t2.micro
+    - t2.small
+    - t2.medium
+    
+  keyPairName:
+    Description: keypair to use for ec2 instance
+    Type: String
+    
+    
+  amiId:
+    Description: AMI to use for instance
+    Type: String
+    Default: ami-e689729e
+    
+  disableAPITermination:
+    Description: Whether or not to disable API Termination
+    Type: String
+    
+  serverIdentifier:
+    Description: Identifier to append to instance name
+    Type: String
+    
+  vpcId:
+    Description: VPC id to place ec2 instance in
+    Type: String
+    Default: vpc-bbf2dadd
+    
+
+    
+
+Resources:
+
+  s3BucketStack:
+    Type: "AWS::CloudFormation::Stack"
+    Properties:
+      TemplateURL: "https://s3-us-west-2.amazonaws.com/nelsone-dev-root-us-west-2/cloudformation/s3.yml"
+      Parameters:
+        environment: !Ref environment
+        uniqueIdentifier: !Ref uniqueIdentifier
+        allowSubnet: !Ref allowSubnet
+        bucketIdentifier: !Ref bucketIdentifier
+      Tags:
+      - Key: CostCenter
+        Value: !Ref uniqueIdentifier
+        
+        
+  ec2Stack:
+    Type: "AWS::CloudFormation::Stack"
+    Properties:
+      TemplateURL: "https://s3-us-west-2.amazonaws.com/nelsone-dev-root-us-west-2/cloudformation/ec2.yml"
+      Parameters:
+        environment: !Ref environment
+        uniqueIdentifier: !Ref uniqueIdentifier
+        instanceType: !Ref instanceType
+        keyPairName: !Ref keyPairName
+        amiId: !Ref amiId
+        disableAPITermination: !Ref disableAPITermination
+        serverIdentifier: !Ref serverIdentifier
+        vpcId: !Ref vpcId

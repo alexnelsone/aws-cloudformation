@@ -35,11 +35,13 @@ Parameters:
     
   keyPairName:
     Description: keypair to use for ec2 instance
-    Type: String
+    Type: AWS::EC2::KeyPair::KeyName
     
   amiId:
     Description: AMI to use for instance
-    Type: String
+    Type: AWS::EC2::Image::Id
+    Default: ami-e689729e
+    
     
   disableAPITermination:
     Description: Whether or not to disable API Termination

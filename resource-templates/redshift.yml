@@ -1,0 +1,152 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: AWS Redshift Template
+
+
+Parameters:
+  
+  environment:
+    Description: Development Envrionment Name
+    Type: String
+    Default: dev
+    AllowedValues:
+    - dev
+    - stage
+    - qa
+    - prod
+    
+  uniqueIdentifier:
+    Description: A unique identifier to associate who this pipeline is for
+    Type: String
+    Default: uniqueId
+    
+  redshiftMasterUserPassword:
+    Description: The password to use for the redshift master user
+    Type: String
+    NoEcho: true
+    AllowedPattern: ^[a-zA-Z0-9]*$    
+    
+      
+  redshiftClusterType:
+    Type: String
+    Description: AWS Redshift Cluster Type
+    Default: single-node
+    AllowedValues:
+      - single-node
+      - multi-node
+      
+  numberOfNodes:
+    Type: Number
+    Description: Number of nodes to put in the cluster
+    Default: 1
+    
+    
+  redshiftClusterNodeType:
+    Type: String
+    Description: The node Type to use for Cluster instances
+    Default: dc2.large
+    AllowedValues:
+    - dc2.large
+    - dc2.8xlarge
+    - ds2.xlarge
+    - ds2.8xlarge
+
+  vpcId:
+    Description: VPC id to place ec2 instance in
+    Type: AWS::EC2::VPC::Id
+    Default: vpc-bbf2dadd
+    
+  redshiftClusterSubnetGroupIds:
+    Description: SubnetIds to use for Redshift Cluster Subnet Group. Two are required.
+    Type: "List<AWS::EC2::Subnet::Id>"
+    Default: subnet-d56cfe9d, subnet-d56cfe9d, subnet-33320e68b
+    
+Conditions:
+  isMultiNodeCluster: !Equals [ !Ref redshiftClusterType, "multi-node" ]
+#  SingleSubnet: !Not [!Equals [ "" ,  !Select [1, !Ref redshiftClusterSubnetGroupIds]  ]]     
+    
+Resources:
+
+  redshiftClusterSubnetGroup:
+    Type: AWS::Redshift::ClusterSubnetGroup
+    Properties:
+      Description: Cluster Subnet Group
+      SubnetIds:
+      - !Select [0, !Ref redshiftClusterSubnetGroupIds]
+      - !Select [1, !Ref redshiftClusterSubnetGroupIds]
+
+  redshiftParameterGroup:
+    Type: AWS::Redshift::ClusterParameterGroup
+    Properties:
+      Description: Redshift ClusterParameterGroup
+      ParameterGroupFamily: redshift-1.0
+      Parameters:
+      - ParameterName: require_ssl
+        ParameterValue: true
+      - ParameterName: enable_user_activity_logging
+        ParameterValue: true
+        
+      
+  redshiftCluster:
+    Type: AWS::Redshift::Cluster
+    Properties:
+      ClusterType: !Ref redshiftClusterType
+      ClusterParameterGroupName: !Ref redshiftParameterGroup
+      NumberOfNodes: !If [ isMultiNodeCluster, !Ref numberOfNodes, !Ref "AWS::NoValue" ]
+      NodeType: !Ref redshiftClusterNodeType
+      DBName: !Join [ '-', [ !Ref uniqueIdentifier, !Ref environment ]] 
+      MasterUsername: !Join [ '-', [ !Ref uniqueIdentifier, "master" ]]
+      MasterUserPassword: !Ref redshiftMasterUserPassword
+      VpcSecurityGroupIds:
+      - !Ref redshiftSecurityGroup
+      ClusterSubnetGroupName: !Ref redshiftClusterSubnetGroup
+      PubliclyAccessible: false
+      Encrypted: true
+      Port: 5439
+      IamRoles:
+      - !Ref redshiftClusterRole
+      
+      
+  redshiftSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: SecurityGroup for Redshift
+      VpcId: !Ref vpcId
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 5439
+        ToPort: 5439
+        CidrIp: 0.0.0.0/0
+        
+        
+  redshiftClusterRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumedPolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal: 
+            Service:
+            - redshift.amazonaws.com
+          Action:
+            - sts:AssumeRole
+            
+      
+  redshiftClusterRolePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Join [ "-" , [ !Ref uniqueIdentifier, "redshift-dev-role" ]]
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Sid: s3allowAll
+          Action: s3:*
+          Effect: Allow
+          Resource: "*"
+      Roles:
+        - !Ref redshiftClusterRole
+              
+     
+    
+    
+        
