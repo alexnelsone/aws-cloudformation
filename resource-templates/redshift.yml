@@ -60,6 +60,12 @@ Parameters:
     Type: "List<AWS::EC2::Subnet::Id>"
     Default: subnet-d56cfe9d, subnet-d56cfe9d, subnet-33320e68b
     
+    
+  redshiftClusterNotificationDistributionList:
+    Description: Distribution list email for cluster notifications
+    Type: String
+    
+    
 Conditions:
   isMultiNodeCluster: !Equals [ !Ref redshiftClusterType, "multi-node" ]
 #  SingleSubnet: !Not [!Equals [ "" ,  !Select [1, !Ref redshiftClusterSubnetGroupIds]  ]]     
@@ -145,6 +151,67 @@ Resources:
           Resource: "*"
       Roles:
         - !Ref redshiftClusterRole
+        
+
+  redshiftClusterSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Join [ "-" , [ !Ref uniqueIdentifier, !Ref redshiftCluster ] ]
+      Subscription:
+      - Protocol: email
+        Endpoint: !Ref redshiftClusterNotificationDistributionList
+        
+  redshiftCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: !Join [ " ", [ "CPU Alarm for", !Ref redshiftCluster, "Redshift Cluster"]]
+      AlarmActions: 
+      - !Ref redshiftClusterSNSTopic
+      MetricName: CPUUtilization
+      Namespace: AWS/Redshift
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 3
+      Threshold: 90
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+      - Name: ClusterIdentifier
+        Value: !Ref redshiftCluster
+        
+  redshiftDiskAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: !Join [ " ", [ "Low disk space alarm for", !Ref redshiftCluster, "Redshift Cluster"]]
+      AlarmActions:
+      - !Ref redshiftClusterSNSTopic
+      MetricName: PercentageDiskSpaceUsed
+      Namespace: AWS/Redshift
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 3
+      Threshold: 75
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+      - Name: ClusterIdentifier
+        Value: !Ref redshiftCluster
+        
+        
+  redshiftHealthAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: !Join [ " ", [ "Health status alarm for", !Ref redshiftCluster, "Redshift Cluster"]]
+      AlarmActions:
+      - !Ref redshiftClusterSNSTopic
+      MetricName: HealthStatus
+      Namespace: AWS/Redshift
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 3
+      Threshold: 1
+      ComparisonOperator: LessThanThreshold
+      Dimensions:
+      - Name: ClusterIdentifier
+        Value: !Ref redshiftCluster
               
      
     
