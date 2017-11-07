@@ -31,25 +31,31 @@ Parameters:
     - root
     - pipeline-artifact-store
     
+  technicalContactEmail:
+    Description: Email address to contact for issues/questions about bucket
+    Type: String
+
+    
 
 
 Resources:
 
 
-  s3ArtifactStoreBucket:
+  s3Bucket:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Join [ "-", [!Ref uniqueIdentifier, !Ref bucketIdentifier, !Ref 'AWS::Region' ]]
       Tags:
       - {Key: CostCenter, Value: !Ref uniqueIdentifier}
+      - {Key: TechnicalContactEmail, Value: !Ref technicalContactEmail}
       
       
-  s3ArtifactStoreBucketPolicy:
+  s3BucketPolicy:
     Type: AWS::S3::BucketPolicy
     Properties:
-      Bucket: !Ref s3ArtifactStoreBucket
+      Bucket: !Ref s3Bucket
       PolicyDocument:
-        Id: !Join [ "-", [ !Ref uniqueIdentifier, "s3-artifactStore-policy"]]
+        Id: !Join [ "-", [ !Ref uniqueIdentifier, "s3-policy"]]
         Version: "2012-10-17"
         Statement:
  #       We will uncomment this when we want to block to a specific subnet
@@ -58,7 +64,7 @@ Resources:
  #         Principal: "*"
  #         Action: "s3:*"
  #         Resource:
- #         - !Sub arn:aws:s3:::${s3ArtifactStoreBucket/*
+ #         - !Sub arn:aws:s3:::${s3Bucket/*
  #         Condition:
  #         - {IpAddress: {"aws:SourceIp":"10.0.0.0/8"
         - Sid: "Deny Insecure Connections"
@@ -66,14 +72,14 @@ Resources:
           Principal: "*"
           Action: "s3:*"
           Resource:
-          - !Sub arn:aws:s3:::${s3ArtifactStoreBucket}/*
+          - !Sub arn:aws:s3:::${s3Bucket}/*
           Condition: {Bool: {"aws:SecureTransport": "false"}}
         - Sid: "Deny unencrypted upload (require --sse)"
           Effect: "Deny"
           Principal: "*"
           Action: "s3:PutObject"
           Resource:
-          - !Sub arn:aws:s3:::${s3ArtifactStoreBucket}/*
+          - !Sub arn:aws:s3:::${s3Bucket}/*
           Condition: {StringNotEquals: {"s3:x-amz-server-side-encryption":"AWS256"}}
           
           
