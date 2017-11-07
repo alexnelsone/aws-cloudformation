@@ -109,7 +109,7 @@ Resources:
       Encrypted: true
       Port: 5439
       IamRoles:
-      - !Ref redshiftClusterRole
+      - !GetAtt redshiftClusterRole.Arn
       
       
   redshiftSecurityGroup:
