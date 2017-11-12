@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: VPC Template that creates vpc with 2 private and 2 public subnets
+Description: VPC Template that creates vpc with 2 private and 2 public subnets.
 
 Parameters:
 
