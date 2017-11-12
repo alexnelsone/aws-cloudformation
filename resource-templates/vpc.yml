@@ -68,7 +68,10 @@ Resources:
     Type: AWS::EC2::DHCPOptions
     Properties:
       DomainName: !Ref domainName
+      DomainNameServers:
+      - AmazonProvidedDNS
       Tags:
+      - {Key: Name, Value: !Join [ "-" , [ !Ref uniqueIdentifier, "DHCP-Options-Set" ]]}      
       - {Key: CostCenter, Value: !Ref uniqueIdentifier}
       - {Key: TechnicalContactEmail, Value: !Ref technicalContactEmail}  
       
@@ -151,6 +154,10 @@ Resources:
     Properties:
       AllocationId: !GetAtt NatGateway0EIP.AllocationId
       SubnetId: !Ref publicSubnet1
+      Tags:
+      - {Key: Name, Value: !Join [ "-", [ !Ref uniqueIdentifier, "NAT-Gateway" ]] }
+      - {Key: CostCenter, Value: !Ref uniqueIdentifier}
+      - {Key: TechnicalContactEmail, Value: !Ref technicalContactEmail}       
 
       
   PublicRouteTable:
