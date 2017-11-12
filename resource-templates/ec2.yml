@@ -52,9 +52,14 @@ Parameters:
     Type: String
     
   vpcId:
-    Description: VPC id to place ec2 instance in
-    Type: String
+    Description: VPC to build ec2 security group in 
+    Type: AWS::EC2::VPC::Id
     Default: vpc-bbf2dadd
+    
+  subnetId:
+    Description: Subnet to build ec2 instance in
+    Type: AWS::EC2::Subnet::Id
+    
 
     
     
@@ -62,6 +67,7 @@ Parameters:
 Resources:
 
   ec2Instance:
+    DependsOn: ec2InstanceSecurityGroup
     Type: AWS::EC2::Instance
     Properties:
       ImageId: !Ref amiId
@@ -76,9 +82,10 @@ Resources:
       - Key: CostCenter
         Value: !Ref uniqueIdentifier
       UserData:
-        "Fn::Base64": !Sub
-        - |
+        Fn::Base64: 
+       
           #!/bin/bash -xe
+       
           yum isntall -y expect
           yum install -y jq
           yum update -y
