@@ -1,0 +1,218 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: VPC Template that creates vpc with 2 private and 2 public subnets
+
+Parameters:
+
+
+  environment:
+    Description: Development Envrionment Name
+    Type: String
+    Default: dev
+    AllowedValues:
+    - dev
+    - stage
+    - qa
+    - prod
+    
+  uniqueIdentifier:
+    Description: A unique identifier to associate who this pipeline is for
+    Type: String
+    Default: uniqueId
+    
+  technicalContactEmail:
+    Description: Email address to contact for issues/questions about bucket
+    Type: String
+    
+    
+  vpcCidrBlock:
+    Description: The CIDR block to use for the vpc
+    Type: String
+    
+  publicSubnetAZ1:
+    Description: CIDR to use for public subnet
+    Type: String
+ 
+  publicSubnetAZ2:
+    Description: CIDR to use for public subnet
+    Type: String
+    
+    
+  privateSubnetAZ1:
+    Description: CIDR to use for private subnet
+    Type: String
+    
+    
+  privateSubnetAZ2:
+    Description: CIDR to use for private subnet
+    Type: String
+    
+  domainName:
+    Description: Domain name to use for dhcp options
+    Type: String
+    
+    
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref vpcCidrBlock
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      InstanceTenancy: default
+      Tags:
+      - {Key: Name, Value: !Join [ "-" , [ !Ref uniqueIdentifier, "vpc" ]]}
+      - {Key: CostCenter, Value: !Ref uniqueIdentifier}
+      - {Key: TechnicalContactEmail, Value: !Ref technicalContactEmail}
+
+  DHCPOptions:
+    Type: AWS::EC2::DHCPOptions
+    Properties:
+      DomainName: !Ref domainName
+      Tags:
+      - {Key: CostCenter, Value: !Ref uniqueIdentifier}
+      - {Key: TechnicalContactEmail, Value: !Ref technicalContactEmail}  
+      
+      
+  DHCPOptionsAssociation:
+    Type: AWS::EC2::VPCDHCPOptionsAssociation
+    Properties:
+      VpcId: !Ref VPC
+      DhcpOptionsId: !Ref DHCPOptions
+ 
+      
+  publicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref publicSubnetAZ1
+      Tags:
+      - {Key: Name, Value: !Join [ "-" , [ !Ref uniqueIdentifier, "Public-Subnet-1" ]]}
+      - {Key: CostCenter, Value: !Ref uniqueIdentifier}
+      - {Key: TechnicalContactEmail, Value: !Ref technicalContactEmail}  
+      
+    
+  publicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref publicSubnetAZ2
+      Tags:
+      - {Key: Name, Value: !Join [ "-" , [ !Ref uniqueIdentifier, "Public-Subnet-2" ]]}
+      - {Key: CostCenter, Value: !Ref uniqueIdentifier}
+      - {Key: TechnicalContactEmail, Value: !Ref technicalContactEmail}    
+  
+  privateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref privateSubnetAZ1
+      Tags:
+      - {Key: Name, Value: !Join [ "-" , [ !Ref uniqueIdentifier, "Private-Subnet-1" ]]}
+      - {Key: CostCenter, Value: !Ref uniqueIdentifier}
+      - {Key: TechnicalContactEmail, Value: !Ref technicalContactEmail}  
+      
+    
+  privateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: !Ref privateSubnetAZ2
+      Tags:
+      - {Key: Name, Value: !Join [ "-" , [ !Ref uniqueIdentifier, "Private-Subnet-2" ]]}
+      - {Key: CostCenter, Value: !Ref uniqueIdentifier}
+      - {Key: TechnicalContactEmail, Value: !Ref technicalContactEmail}    
+      
+      
+  internetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+      - {Key: Name, Value: !Join [ "-", [ !Ref uniqueIdentifier, "InternetGateway" ]] }
+      - {Key: CostCenter, Value: !Ref uniqueIdentifier}
+      - {Key: TechnicalContactEmail, Value: !Ref technicalContactEmail} 
+      
+      
+  VPCGatewayAttachment:
+    DependsOn: internetGateway
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref internetGateway
+      
+  NatGateway0EIP:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+      
+      
+  NatGateway0:
+    DependsOn: VPCGatewayAttachment
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt NatGateway0EIP.AllocationId
+      SubnetId: !Ref publicSubnet1
+
+      
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+      - {Key: Name, Value: !Join [ "-", [ !Ref uniqueIdentifier, "PublicRouteTable" ]] }
+      - {Key: CostCenter, Value: !Ref uniqueIdentifier}
+      - {Key: TechnicalContactEmail, Value: !Ref technicalContactEmail} 
+      
+  PublicRoute:
+    DependsOn: VPCGatewayAttachment
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref internetGateway
+      
+  PublicSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref publicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+      
+  PublicSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref publicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+
+  privateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+      - {Key: Name, Value: !Join [ "-", [ !Ref uniqueIdentifier, "PrivateRouteTable" ]] }
+      - {Key: CostCenter, Value: !Ref uniqueIdentifier}
+      - {Key: TechnicalContactEmail, Value: !Ref technicalContactEmail} 
+      
+      
+  privateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref privateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway0
+
+
+  privateSubnet1RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref privateSubnet1
+      RouteTableId: !Ref privateRouteTable
+
+      
+  privateSubnet2RouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref privateSubnet2
+      RouteTableId: !Ref privateRouteTable
+
+  
