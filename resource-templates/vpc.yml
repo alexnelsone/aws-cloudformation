@@ -222,4 +222,36 @@ Resources:
       SubnetId: !Ref privateSubnet2
       RouteTableId: !Ref privateRouteTable
 
-  
+
+
+Outputs:
+  VPC:
+    Description: the id of the vpc
+    Value: !Ref VPC
+    Export:
+      Name: !Join [ "-", [ !Ref uniqueIdentifier, "VPC" ]]
+      
+      
+  PrivateSubnet1:
+    Description: Private Subnet 1 
+    Value: !Ref privateSubnet1
+    Export:
+      Name: !Join [ "-", [ !Ref uniqueIdentifier, "private-subnet-1" ]]
+      
+  PrivateSubnet2:
+    Description: Private Subnet 2
+    Value: !Ref privateSubnet2
+    Export:
+      Name: !Join [ "-", [ !Ref uniqueIdentifier, "private-subnet-2" ]]
+      
+  PublicSubnet1:
+    Description: Public Subnet 1 
+    Value: !Ref publicSubnet1
+    Export:
+      Name: !Join [ "-", [ !Ref uniqueIdentifier, "public-subnet-1" ]]
+      
+  PrivateSubnet2:
+    Description: Public Subnet 2
+    Value: !Ref publicSubnet2
+    Export:
+      Name: !Join [ "-", [ !Ref uniqueIdentifier, "public-subnet-2" ]]
