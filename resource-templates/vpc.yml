@@ -229,7 +229,7 @@ Outputs:
     Description: the id of the vpc
     Value: !Ref VPC
     Export:
-      Name: !Join [ "-", [ !Ref uniqueIdentifier, "VPC" ]]
+      Name: !Join [ "-", [ !Ref uniqueIdentifier, "vpc" ]]
       
       
   PrivateSubnet1:

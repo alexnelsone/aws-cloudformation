@@ -97,7 +97,10 @@ Resources:
     Properties:
       GroupName: !Sub ${uniqueIdentifier}-${serverIdentifier}-securityGroup
       GroupDescription: Security Group for EC2 instance
-      VpcId: !Ref vpcId
+      VpcId: 
+        # import value with sub not support with short firm
+        Fn::ImportValue: 
+          !Sub ${uniqueIdentifier}-vpc
       SecurityGroupIngress:
       - IpProtocol: tcp
         FromPort: '22'
