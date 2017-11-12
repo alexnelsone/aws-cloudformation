@@ -76,9 +76,10 @@ Resources:
       InstanceType: !Ref instanceType
       SecurityGroupIds:
       - !Ref ec2InstanceSecurityGroup
+      SubnetId: !Ref subnetId
       Tags:
       - Key: Name
-        Value: !Join [ "-" , [ !Ref uniqueIdentifier, serverIdentifier ]]
+        Value: !Join [ "-" , [ !Ref uniqueIdentifier, !Ref serverIdentifier ]]
       - Key: CostCenter
         Value: !Ref uniqueIdentifier
       UserData:
