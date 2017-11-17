@@ -1,0 +1,97 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: Deploy lambda with schedule
+
+Parameters:
+  environment:
+    Description: Development Envrionment Name
+    Type: String
+    Default: dev
+    AllowedValues:
+    - dev
+    - stage
+    - qa
+    - prod
+  
+  uniqueIdentifier:
+    Description: A unique identifier to associate who this pipeline is for
+    Type: String
+    Default: uniqueId  
+  
+  lambdaFunctionName:
+    Description: The name of the lambda function
+    Type: String
+    Default: lambdaFunctionName
+  
+  lambdaFunctionHandler:
+    Description: the namd of the lambda handler
+    Type: String
+    Default: lambdaFileName.lambda_handler
+  
+  lambdaRuntime:
+    Description: Runtime to use for the lambda
+    Type: String
+    Default: python2.7
+  
+  lambdaS3Bucket:
+    Description: Bucket where lambda zip file is located
+    Type: String
+  
+  lambdaS3Key:
+    Description: Key of the lambda zip file
+    Type: String
+  
+  lambdaExecutionRole:
+    Description: The name of the role that will run the lambda (not the arn)
+    Type: String
+  
+  lambdaDescription:
+    Description: Description of what the lambda function does
+    Type: String
+    
+  eventRuleName:
+    Description: A name to give to the Events Rule
+    Type: String
+
+  eventRuleScheduleExpression:
+    Description: The schedule for the event
+    Type: String
+    Default: 'cron(0 22 * * ? *)'
+    
+Resources:
+  lambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Ref lambdaFunctionName
+      Description: !Ref lambdaDescription
+      Handler: !Ref lambdaFunctionHandler
+      Runtime: !Ref lambdaRuntime
+      Timeout: 300
+      Code:
+        S3Bucket: !Ref lambdaS3Bucket
+        S3Key: !Ref lambdaS3Key
+      Role: !Join [ '', ['arn:aws:iam::', !Ref 'AWS::AccountId', ':role/', !Ref lambdaExecutionRole ]]
+      Tags:
+      - Key: CostCenter
+        Value: !Ref uniqueIdentifier
+        
+        
+  ScheduleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Ref eventRuleName
+      ScheduleExpression: !Ref eventRuleScheduleExpression
+      State: ENABLED
+      Targets:
+      - Id: !Ref lambdaFunctionName
+        Arn: !GetAtt lambdaFunction.Arn
+        
+  lambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref lambdaFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt ScheduleRule.Arn
+        
+        
+        
