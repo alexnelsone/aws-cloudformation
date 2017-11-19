@@ -73,12 +73,18 @@ Resources:
           Statement:
           - Resource:
             - !Join [ "", [ "arn:aws:s3:::", !Join [ "-", [ !Ref uniqueIdentifier, !Ref bucketIdentifier, !Ref "AWS::Region" ]]]]
+            - !GetAtt codeRepositoryPipeline.Arn
             Effect: Allow
             Action:
             - s3:PutObject #does it really need this?
             - s3:GetObject
             - s3:GetObjectVersion
             - s3:GetBucketVersioning
+            - codecommit:CancelUploadArchive
+            - codecommit:GetBranch
+            - codecommit:GetCommit
+            - codecommit:GetUploadArchiveStatus
+            - codecommit:UploadArchive
           - Resource: 
             - "*"
             Effect: Allow
@@ -129,7 +135,7 @@ Resources:
             
             Version: 1
           Configuration:
-            RepositoryName: !Ref codeRepositoryPipeline
+            RepositoryName: !GetAtt codeRepositoryPipeline.Name
             BranchName: !Ref environment
           OutputArtifacts:
           - Name: source
