@@ -38,6 +38,18 @@ Parameters:
     Description: Email of user or distribution list to receive notifications from cloudformation pipeline
     Type: String
     
+    
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: "Deployment Environment"
+      Parameters:
+      - environment
+    ParameterLabels:
+      environment:
+        default: Development environment for this template
+    
 
 Resources:
 
