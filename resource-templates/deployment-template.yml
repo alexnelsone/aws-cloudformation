@@ -5,7 +5,7 @@ Parameters:
 
  
   environment:
-    Description: Development Envrionment Name
+    Description: (dev,stg,qa,prod)
     Type: String
     Default: dev
     AllowedValues:
@@ -65,7 +65,18 @@ Parameters:
     Type: String
     Default: vpc-bbf2dadd
     
-
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: "Deployment Environment"
+      Parameters:
+      - environment
+    ParameterLabels:
+      environment:
+        default: Development environment for this template
+     
+      
     
 
 Resources:
