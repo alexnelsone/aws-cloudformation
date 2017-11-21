@@ -1,4 +1,4 @@
-# aws-cloudformation
+# aws-cloudformation project
 
 This project discusses ways of building out an aws account from scratch using automated deployment processes.  
 
