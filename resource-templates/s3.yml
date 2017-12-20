@@ -158,9 +158,20 @@ Resources:
     Properties:
       BucketName: !Join [ "-", [!Ref uniqueIdentifier, !Ref bucketIdentifier, !Ref 'AWS::Region' ]]
       Tags:
-      - {Key: CostCenter, Value: !Ref uniqueIdentifier}
+      - {Key: CostCenter, Value: !Ref costCenter}
       - {Key: TechnicalContactEmail, Value: !Ref technicalContactEmail}
-      
+      - {Key: AssignmentGroup, Value: !Ref assignmentGroup}
+      - {Key: applicationGroup, Value: !Ref applicationGroup}
+      - {Key: applicaton, Value: !Ref applicaton}
+      - {Key: dataClass, Value: !Ref dataClass}
+      - {Key: regulatory, Value: !Ref regulatory}
+      - {Key: technicalContactEmail, Value: !Ref technicalContactEmail}
+      - {Key: whoBuilt, Value: !Ref whoBuilt}
+      - {Key: solutionVP, Value: !Ref solutionVP}
+      - {Key: solutionDirector, Value: !Ref solutionDirector}
+      - {Key: solutionManager, Value: !Ref solutionManager}
+      - {Key: createdFor, Value: !Ref createdFor}
+            
       
   s3BucketPolicy:
     Type: AWS::S3::BucketPolicy
