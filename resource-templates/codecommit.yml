@@ -1,0 +1,80 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: 'Template used for creating CodeCommit Repositories'
+
+
+Parameters:
+
+#  environment:
+#    Description: (dev,stg,qa,prod)
+#    Type: String
+#    Default: dev
+#    AllowedValues:
+#    - dev
+#    - stage
+#    - qa
+#    - prod
+
+  uniqueIdentifier:
+    Description: 'Repository name will be prefixed with this id'
+    Type: String
+    Default: uniqueId
+    
+  repositoryName:
+    Description: 'A name for the repository. This will be appended to the id. For example:  uniqueIdentifier-repositoryName'
+    Type: String
+    
+  repositoryDescription: 
+    Description: 'A description for the repository. What is this repository storing?'
+    Type: String
+    
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: "CodeCommit Repository"
+      Parameters:
+      - uniqueIdentifier
+      - repositoryName
+      - repositoryDescription
+    ParameterLabels:
+      uniqueIdentifier:
+        default: 'Unique identifier for code repository'
+      repositoryName:
+        default: 'A name to be given to this repository'
+      repositoryDescription:
+        default: 'A description for the repository.  What is this repository storing?'
+
+
+Resources:
+  codeCommitRepository:
+    Type: 'AWS::CodeCommit::Repository'
+    Properties: 
+      RepositoryDescription: !Ref repositoryDescription
+      RepositoryName: !Sub ${uniqueIdentifier}-${repositoryName}
+  #    Triggers:
+  #    - Trigger
+  
+
+Outputs:
+  RepoSshCloneUrl:
+    Description: 'SSH Clone URL for repository'
+    Value: !GetAtt codeCommitRepository.CloneUrlSsh
+    Export:
+      Name: !Sub '${AWS::StackName}-ssh-url'
+  RepoHttpCloneUrl:
+    Description: 'HTTPS Clone URL for repository'
+    Value: !GetAtt codeCommitRepository.CloneUrlHttp
+    Export:
+      Name: !Sub '${AWS::StackName}-https-url'
+  RepoArn:
+    Description: 'Repo ARN'
+    Value: !GetAtt codeCommitRepository.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-arn'
+  RepoName:
+    Description: 'Repo Name'
+    Value: !GetAtt codeCommitRepository.Name
+    Export:
+      Name: !Sub '${AWS::StackName}-repo-name'
+
