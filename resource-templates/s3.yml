@@ -32,7 +32,6 @@ Parameters:
     - pipeline-artifact-store
     
 
-    
 # TAGS
   costCenter:
     Type: String
@@ -94,11 +93,6 @@ Parameters:
   createdFor:
     Type: String
     Default: 'not defined'      
-  
-    
-    
-  
-
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -158,10 +152,7 @@ Metadata:
         default: 'Person/group this bucket was created for.'        
       
 
-
-
 Resources:
-
 
   s3Bucket:
     Type: AWS::S3::Bucket
