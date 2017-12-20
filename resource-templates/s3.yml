@@ -13,7 +13,7 @@ Parameters:
     - prod
     
   uniqueIdentifier:
-    Description: A unique identifier to associate who this pipeline is for
+    Description: A unique identifier to associate who this bucket is for
     Type: String
     Default: uniqueId
     
@@ -31,11 +31,133 @@ Parameters:
     - root
     - pipeline-artifact-store
     
-  technicalContactEmail:
-    Description: Email address to contact for issues/questions about bucket
-    Type: String
 
     
+# TAGS
+  costCenter:
+    Type: String
+    Default: 'not defined'
+    
+  assignmentGroup:
+    Type: String
+    Default: 'not defined'
+    
+  applicationGroup:
+    Type: String
+    Default: 'not defined'
+    
+  applicaton:
+    Type: String
+    Default: 'S3 Object Storage'
+    
+  dataClass:
+    Type: String
+    Default: 'not defined'
+    AllowedValues:
+    - InternalUseOnly
+    - Public
+    - 'not defined'
+    
+  regulatory:
+    Type: String
+    Default: 'not defined'
+    AllowedValues:
+    - none
+    - HIPPA
+    - GxP
+    - SOX
+    - PCI
+    - PII
+    - 'not defined'
+
+  technicalContactEmail:
+    Type: String
+    Default: 'not defined'
+    
+    
+  whoBuilt:
+    Type: String
+    Default: 'not defined'
+    
+  solutionVP:
+    Type: String
+    Default: 'not defined'
+    
+  solutionDirector:
+    Type: String
+    Default: 'not defined'
+
+  solutionManager:
+    Type: String
+    Default: 'not defined'
+    
+  createdFor:
+    Type: String
+    Default: 'not defined'      
+  
+    
+    
+  
+
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: "S3 Bucket Identifer"
+      Parameters:
+      - environment
+      - uniqueIdentifier
+      - bucketIdentifier
+      - repositoryDescription
+    - Label:
+        default: "Tags"
+      Parameters:
+        - costCenter
+        - assignmentGroup
+        - applicationGroup
+        - applicaton
+        - dataClass
+        - regulatory
+        - technicalContactEmail
+        - whoBuilt
+        - solutionVP
+        - solutionDirector
+        - solutionManager
+        - createdFor
+    ParameterLabels:
+      environment:
+        default: 'Environment where this bucket is being used'
+      uniqueIdentifier:
+        default: 'Unique identifier for s3 bucket'
+      bucketIdentifier:
+        default: 'Identifier for this bucket. Will be appended to uniqueIdentifier to form bucket name.'
+      costCenter: 
+        default: 'CostCenter to tag this bucket with'
+      assignmentGroup:
+        default: 'Assignment Group to associate with bucket.'
+      applicationGroup:
+        default: 'Application Group to associate with bucket.'
+      application:
+        default: 'Description of application'
+      dataClass:
+        default: 'Type of data stored in this bucket.'
+      regulatory:
+        default: 'Classification if Regulatory data is stored.'
+      technicalContactEmail:
+        default: 'Email address of person/group to contact for information regarding this bucket.'
+      whoBuilt:
+        default: 'Who built this bucket.'
+      solutionVP:
+        default: 'VP of group who owns this bucket.'
+      solutionDirector:
+        default: 'Director of group who owns this bucket.'
+      solutionManager:
+        default: 'Manager of group who owns this bucket.'
+      createdFor:
+        default: 'Person/group this bucket was created for.'        
+      
+
 
 
 Resources:
