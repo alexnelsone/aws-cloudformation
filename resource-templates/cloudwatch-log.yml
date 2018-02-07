@@ -1,0 +1,31 @@
+AWSTemplateFormatVersion: 2010-09-09 
+Description: Template to Generate Log Streams and Log Groups
+
+Parameters:
+
+  uniqueIdentifier:
+    Type: String
+    Default: none_defined
+    
+  logGroupName:
+    Type: String
+    
+  logStreamName:
+    Type: String
+
+
+
+Resources:
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub ${uniqueIdentifier}-${logGroupName}
+      RetentionInDays: 365
+      
+      
+  LogStream:
+    Type: AWS::Logs::LogStream
+    Properties:
+      LogGroupName: !Ref LogGroup
+      LogStreamName: !Ref logStreamName
