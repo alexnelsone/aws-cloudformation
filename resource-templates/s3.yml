@@ -1,5 +1,5 @@
-AWSTemplateFormatVersion: 2010-09-09
-Description: Initial pipeline 
+AWSTemplateFormatVersion: 2010-09-09 
+Description: s3 Bucket resource template  
 
 Parameters:
   environment:
@@ -7,6 +7,7 @@ Parameters:
     Type: String
     Default: dev
     AllowedValues:
+    - np
     - dev
     - stage
     - qa
@@ -30,6 +31,7 @@ Parameters:
     - test2
     - root
     - pipeline-artifact-store
+    - glue-notebook
     
 
 # TAGS
@@ -45,7 +47,7 @@ Parameters:
     Type: String
     Default: 'not defined'
     
-  applicaton:
+  application:
     Type: String
     Default: 'S3 Object Storage'
     
@@ -68,7 +70,7 @@ Parameters:
     - PCI
     - PII
 
-  technicalContactEmail:
+  technicalContact:
     Type: String
     Default: 'not defined'
     
@@ -102,17 +104,16 @@ Metadata:
       - environment
       - uniqueIdentifier
       - bucketIdentifier
-      - repositoryDescription
     - Label:
         default: "Tags"
       Parameters:
         - costCenter
         - assignmentGroup
         - applicationGroup
-        - applicaton
+        - application
         - dataClass
         - regulatory
-        - technicalContactEmail
+        - technicalContact
         - whoBuilt
         - solutionVP
         - solutionDirector
@@ -120,35 +121,29 @@ Metadata:
         - createdFor
     ParameterLabels:
       environment:
-        default: 'Environment where this bucket is being used'
+        default: 'Environment where this resource is being used'
       uniqueIdentifier:
-        default: 'Unique identifier for s3 bucket'
+        default: 'Unique identifier for this resource'
       bucketIdentifier:
-        default: 'Identifier for this bucket. Will be appended to uniqueIdentifier to form bucket name.'
+        default: 'Identifier for this resource. Will be appended to uniqueIdentifier to form resource name.'
       costCenter: 
-        default: 'CostCenter to tag this bucket with'
+        default: 'CostCenter to tag this resource with'
       assignmentGroup:
-        default: 'Assignment Group to associate with bucket.'
+        default: 'Assignment Group to associate with resource.'
       applicationGroup:
-        default: 'Application Group to associate with bucket.'
+        default: 'Application Group to associate with resource.'
       application:
         default: 'Description of application'
       dataClass:
-        default: 'Type of data stored in this bucket.'
+        default: 'Type of data stored in this resource.'
       regulatory:
         default: 'Classification if Regulatory data is stored.'
-      technicalContactEmail:
-        default: 'Email address of person/group to contact for information regarding this bucket.'
+      technicalContact:
+        default: 'Email address of person/group to contact for information regarding this resource.'
       whoBuilt:
-        default: 'Who built this bucket.'
-      solutionVP:
-        default: 'VP of group who owns this bucket.'
-      solutionDirector:
-        default: 'Director of group who owns this bucket.'
-      solutionManager:
-        default: 'Manager of group who owns this bucket.'
+        default: 'Who built this resource.'
       createdFor:
-        default: 'Person/group this bucket was created for.'        
+        default: 'Person/group this resource was created for.'        
       
 
 Resources:
@@ -156,21 +151,35 @@ Resources:
   s3Bucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Join [ "-", [!Ref uniqueIdentifier, !Ref bucketIdentifier, !Ref 'AWS::Region' ]]
+      BucketName: !Join [ "-", [!Ref environment, !Ref uniqueIdentifier, !Ref bucketIdentifier, !Ref 'AWS::Region' ]]
       Tags:
       - {Key: CostCenter, Value: !Ref costCenter}
-      - {Key: TechnicalContactEmail, Value: !Ref technicalContactEmail}
+      - {Key: TechnicalContact, Value: !Ref technicalContact}
       - {Key: AssignmentGroup, Value: !Ref assignmentGroup}
       - {Key: applicationGroup, Value: !Ref applicationGroup}
-      - {Key: applicaton, Value: !Ref applicaton}
+      - {Key: application, Value: !Ref application}
       - {Key: dataClass, Value: !Ref dataClass}
       - {Key: regulatory, Value: !Ref regulatory}
-      - {Key: technicalContactEmail, Value: !Ref technicalContactEmail}
+      - {Key: technicalContact, Value: !Ref technicalContact}
       - {Key: whoBuilt, Value: !Ref whoBuilt}
-      - {Key: solutionVP, Value: !Ref solutionVP}
-      - {Key: solutionDirector, Value: !Ref solutionDirector}
-      - {Key: solutionManager, Value: !Ref solutionManager}
       - {Key: createdFor, Value: !Ref createdFor}
+      LifecycleConfiguration:
+        Rules:
+          - Id: "Transition to Standard-IA after 90 days"
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+            NoncurrentVersionExpirationInDays: 182
+            Transitions:
+              - StorageClass: STANDARD_IA
+                TransitionInDays: 90
+              - StorageClass: GLACIER
+                TransitionInDays: 181
+            NoncurrentVersionTransitions:
+              - StorageClass: STANDARD_IA
+                TransitionInDays: 90
+              - StorageClass: GLACIER
+                TransitionInDays: 181      
             
       
   s3BucketPolicy:
@@ -181,15 +190,25 @@ Resources:
         Id: !Join [ "-", [ !Ref uniqueIdentifier, "s3-policy"]]
         Version: "2012-10-17"
         Statement:
- #       We will uncomment this when we want to block to a specific subnet
- #       - Sid: "Allow access only from this subnet"
- #         Effect: "Allow"
- #         Principal: "*"
- #         Action: "s3:*"
- #         Resource:
- #         - !Sub arn:aws:s3:::${s3Bucket/*
- #         Condition:
- #         - {IpAddress: {"aws:SourceIp":"10.0.0.0/8"
+#        We will uncomment this when we want to block to a specific subnet
+        - Sid: "Allow access only from this subnet"
+          Effect: "Allow"
+          Principal: "*"
+          Action: "s3:*"
+          Resource:
+          - !Sub arn:aws:s3:::${s3Bucket}/*
+          Condition:
+            IpAddress: 
+              aws:sourceIp: 10.0.0.0/8
+        - Sid: "Allow access only from this subnet"
+          Effect: "Allow"
+          Principal: "*"
+          Action: "s3:*"
+          Resource:
+          - !Sub arn:aws:s3:::${s3Bucket}/*
+          Condition:
+            IpAddress: 
+              aws:sourceIp: 198.89.160.0/24            
         - Sid: "Deny Insecure Connections"
           Effect: "Deny"
           Principal: "*"
@@ -203,12 +222,31 @@ Resources:
           Action: "s3:PutObject"
           Resource:
           - !Sub arn:aws:s3:::${s3Bucket}/*
-          Condition: {StringNotEquals: {"s3:x-amz-server-side-encryption":"AWS256"}}
+          Condition: {StringNotEquals: {"s3:x-amz-server-side-encryption":"AES256"}}
+#        - Sid: "Allow access from another account"
+#          Effect: "Allow"
+#          Principal:
+#            AWS: 
+#            - "arn:aws:iam::ACCOUNT_ID:root"
+#          Action:
+#          - s3:GetBucketLocation
+#          - s3:ListBucket
+#          - s3:PutObject
+#          - s3:AbortMultipartUpload
+#          - s3:ListMultipartUploadParts
+#          - s3:ListBucketMultipartUploads
+#          Resource:
+#          - !Sub arn:aws:s3:::${s3Bucket}
+#          - !Sub arn:aws:s3:::${s3Bucket}/*         
           
           
+          
+          
+            
+           
 Outputs:
   s3BucketArn:
     Description: 's3 bucket arn'
     Value: !GetAtt s3Bucket.Arn
     Export:
-      Name: !Sub '${AWS::StackName}-bucket-arn'          
+      Name: !Sub '${AWS::StackName}-bucket-arn'       
