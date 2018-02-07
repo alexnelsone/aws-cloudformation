@@ -1,18 +1,8 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: 'Template used for creating CodeCommit Repositories'
+Description: Template used for creating CodeCommit Repositories
 
 
 Parameters:
-
-#  environment:
-#    Description: (dev,stg,qa,prod)
-#    Type: String
-#    Default: dev
-#    AllowedValues:
-#    - dev
-#    - stage
-#    - qa
-#    - prod
 
   uniqueIdentifier:
     Description: 'Repository name will be prefixed with this id'
@@ -77,4 +67,3 @@ Outputs:
     Value: !GetAtt codeCommitRepository.Name
     Export:
       Name: !Sub '${AWS::StackName}-repo-name'
-
