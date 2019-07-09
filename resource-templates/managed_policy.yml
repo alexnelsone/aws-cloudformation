@@ -1,0 +1,58 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description:  Template for deploying IAM policy that requires MFA
+
+Resources:
+
+  requireMfaGroup:
+    Type: "AWS::IAM::Group"
+    Properties:
+      GroupName: "requireMFA"
+
+
+  mfaPolicy:
+    Type: "AWS::IAM::ManagedPolicy"
+    Properties:
+      ManagedPolicyName: "A_NAME"
+      Description: "Forces users to have an MFA set before they can do anything.  Allows them to set their own MFA device"
+      Path: "/"
+      Groups:
+        - !Ref requireMfaGroup
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - "Sid": "AllowUsersToManageTheirOwnPasswordsAndKeys"
+            "Effect": Allow
+            "Resource": "arn:aws:iam::ACCOUNT_NUM:user/${aws:username}"
+            "Action":
+              - "iam:*LoginProfile"
+              - "iam:*AccessKey"
+              - "iam:*SSHPublicKey*"
+          - "Sid": "AllowUsersToListAccountInformation"
+            "Effect": Allow
+            "Resource": "*"
+            "Action":
+              - "iam:ListAccount*"
+              - "iam:GetAccountSummary"
+              - "iam:GetAccountPasswordPolicy"
+              - "iam:ListUsers"
+          - "Sid": "AllowUsersToCreateEnableResyncDeleteTheirOwnVirtualMFADevice"
+            "Effect": Allow
+            "Resource":
+              - "arn:aws:iam::ACCOUNT_NUM:mfa/${aws:username}"
+              - "arn:aws:iam::ACCOUNT_NUM:user/${aws:username}"
+            "Action":
+              - "iam:CreateVirtualMFADevice"
+              - "iam:EnableMFADevice"
+              - "iam:ResyncMFADevice"
+              - "iam:DeleteVirtualMFADevice"
+          - "Sid": "AllowUsersToDeactivateTheirOwnVirtualMFADevice"
+            "Effect": Allow
+            "Resource":
+              - "arn:aws:iam::ACCOUNT_NUM:mfa/${aws:username}"
+              - "arn:aws:iam::ACCOUNT_NUM:user/${aws:username}"
+            "Action":
+              - "iam:DeactivateMFADevice"
+            "Condition":
+                Bool:
+                  "aws:MultiFactorAuthPresent": true
+
