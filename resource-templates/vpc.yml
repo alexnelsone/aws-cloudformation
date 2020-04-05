@@ -28,24 +28,39 @@ Parameters:
     Description: The CIDR block to use for the vpc
     Type: String
     
-  publicSubnetAZ1:
-    Description: CIDR to use for public subnet
+  publicSubnet1CIDR:
+    Description: CIDR to use for public subnet1
     Type: String
  
+  publicSubnet2CIDR:
+    Description: CIDR to use for public subnet2
+    Type: String
+    
+    
+  privateSubnet1CIDR:
+    Description: CIDR to use for private subnet1
+    Type: String
+
+  privateSubnet2CIDR:
+    Description: CIDR to use for private subnet2
+    Type: String
+
+  publicSubnetAZ1:
+    Description: AZ to use for public subnet
+    Type: AWS::EC2::AvailabilityZone::Name
+
   publicSubnetAZ2:
-    Description: CIDR to use for public subnet
-    Type: String
-    
-    
+    Description: AZ to use for the public subnet
+    Type: AWS::EC2::AvailabilityZone::Name
+
   privateSubnetAZ1:
-    Description: CIDR to use for private subnet
-    Type: String
-    
-    
+    Description: AZ to use for the private subnet
+    Type: AWS::EC2::AvailabilityZone::Name
+
   privateSubnetAZ2:
-    Description: CIDR to use for private subnet
-    Type: String
-    
+    Description: AZ to use for the private subnet
+    Type: AWS::EC2::AvailabilityZone::Name
+
   domainName:
     Description: Domain name to use for dhcp options
     Type: String
@@ -60,9 +75,10 @@ Resources:
       EnableDnsHostnames: true
       InstanceTenancy: default
       Tags:
-      - {Key: Name, Value: !Join [ "-" , [ !Ref uniqueIdentifier, "vpc" ]]}
+      - {Key: Name, Value: !Join [ "-" , [ !Ref uniqueIdentifier, !Ref environment,  "vpc" ]]}
       - {Key: CostCenter, Value: !Ref uniqueIdentifier}
       - {Key: TechnicalContactEmail, Value: !Ref technicalContactEmail}
+      - {Key: environment, Value: !Ref environment}
 
   DHCPOptions:
     Type: AWS::EC2::DHCPOptions
@@ -71,48 +87,52 @@ Resources:
       DomainNameServers:
       - AmazonProvidedDNS
       Tags:
-      - {Key: Name, Value: !Join [ "-" , [ !Ref uniqueIdentifier, "DHCP-Options-Set" ]]}      
+      - {Key: Name, Value: !Join [ "-" , [ !Ref uniqueIdentifier, !Ref environment, "DHCP-Options-Set" ]]}
       - {Key: CostCenter, Value: !Ref uniqueIdentifier}
-      - {Key: TechnicalContactEmail, Value: !Ref technicalContactEmail}  
-      
-      
+      - {Key: TechnicalContactEmail, Value: !Ref technicalContactEmail}
+      - {Key: environment, Value: !Ref environment}
+
   DHCPOptionsAssociation:
     Type: AWS::EC2::VPCDHCPOptionsAssociation
     Properties:
       VpcId: !Ref VPC
       DhcpOptionsId: !Ref DHCPOptions
- 
-      
+
   publicSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
       CidrBlock: !Ref publicSubnetAZ1
+      AvailabilityZone: !Ref publicSubnetAZ1
       Tags:
-      - {Key: Name, Value: !Join [ "-" , [ !Ref uniqueIdentifier, "Public-Subnet-1" ]]}
+      - {Key: Name, Value: !Join [ "-" , [ !Ref uniqueIdentifier, !Ref environment, "Public-Subnet-1" ]]}
       - {Key: CostCenter, Value: !Ref uniqueIdentifier}
-      - {Key: TechnicalContactEmail, Value: !Ref technicalContactEmail}  
-      
+      - {Key: TechnicalContactEmail, Value: !Ref technicalContactEmail}
+      - {Key: environment, Value: !Ref environment}
     
   publicSubnet2:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
       CidrBlock: !Ref publicSubnetAZ2
+      AvailabilityZone: !Ref publicSubnetAZ1
       Tags:
-      - {Key: Name, Value: !Join [ "-" , [ !Ref uniqueIdentifier, "Public-Subnet-2" ]]}
+      - {Key: Name, Value: !Join [ "-" , [ !Ref uniqueIdentifier, !Ref environment, "Public-Subnet-2" ]]}
       - {Key: CostCenter, Value: !Ref uniqueIdentifier}
-      - {Key: TechnicalContactEmail, Value: !Ref technicalContactEmail}    
+      - {Key: TechnicalContactEmail, Value: !Ref technicalContactEmail}
+      - {Key: environment, Value: !Ref environment}
   
   privateSubnet1:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
       CidrBlock: !Ref privateSubnetAZ1
+      AvailabilityZone: !Ref privateSubnetAZ1
       Tags:
       - {Key: Name, Value: !Join [ "-" , [ !Ref uniqueIdentifier, "Private-Subnet-1" ]]}
       - {Key: CostCenter, Value: !Ref uniqueIdentifier}
-      - {Key: TechnicalContactEmail, Value: !Ref technicalContactEmail}  
+      - {Key: TechnicalContactEmail, Value: !Ref technicalContactEmail}
+      - {Key: environment, Value: !Ref environment}
       
     
   privateSubnet2:
@@ -120,19 +140,22 @@ Resources:
     Properties:
       VpcId: !Ref VPC
       CidrBlock: !Ref privateSubnetAZ2
+      AvailabilityZone: !Ref privateSubnetAZ2
       Tags:
       - {Key: Name, Value: !Join [ "-" , [ !Ref uniqueIdentifier, "Private-Subnet-2" ]]}
       - {Key: CostCenter, Value: !Ref uniqueIdentifier}
-      - {Key: TechnicalContactEmail, Value: !Ref technicalContactEmail}    
+      - {Key: TechnicalContactEmail, Value: !Ref technicalContactEmail}
+      - {Key: environment, Value: !Ref environment}
       
       
   internetGateway:
     Type: AWS::EC2::InternetGateway
     Properties:
       Tags:
-      - {Key: Name, Value: !Join [ "-", [ !Ref uniqueIdentifier, "InternetGateway" ]] }
+      - {Key: Name, Value: !Join [ "-", [ !Ref uniqueIdentifier, !Ref environment, "InternetGateway" ]] }
       - {Key: CostCenter, Value: !Ref uniqueIdentifier}
-      - {Key: TechnicalContactEmail, Value: !Ref technicalContactEmail} 
+      - {Key: TechnicalContactEmail, Value: !Ref technicalContactEmail}
+      - {Key: environment, Value: !Ref environment}
       
       
   VPCGatewayAttachment:
@@ -146,8 +169,7 @@ Resources:
     Type: AWS::EC2::EIP
     Properties:
       Domain: vpc
-      
-      
+
   NatGateway0:
     DependsOn: VPCGatewayAttachment
     Type: AWS::EC2::NatGateway
@@ -155,9 +177,10 @@ Resources:
       AllocationId: !GetAtt NatGateway0EIP.AllocationId
       SubnetId: !Ref publicSubnet1
       Tags:
-      - {Key: Name, Value: !Join [ "-", [ !Ref uniqueIdentifier, "NAT-Gateway" ]] }
+      - {Key: Name, Value: !Join [ "-", [ !Ref uniqueIdentifier, !Ref environment, "NAT-Gateway" ]] }
       - {Key: CostCenter, Value: !Ref uniqueIdentifier}
-      - {Key: TechnicalContactEmail, Value: !Ref technicalContactEmail}       
+      - {Key: TechnicalContactEmail, Value: !Ref technicalContactEmail}
+      - {Key: environment, Value: !Ref environment}
 
       
   PublicRouteTable:
@@ -165,9 +188,10 @@ Resources:
     Properties:
       VpcId: !Ref VPC
       Tags:
-      - {Key: Name, Value: !Join [ "-", [ !Ref uniqueIdentifier, "PublicRouteTable" ]] }
+      - {Key: Name, Value: !Join [ "-", [ !Ref uniqueIdentifier, !Ref environment, "PublicRouteTable" ]] }
       - {Key: CostCenter, Value: !Ref uniqueIdentifier}
-      - {Key: TechnicalContactEmail, Value: !Ref technicalContactEmail} 
+      - {Key: TechnicalContactEmail, Value: !Ref technicalContactEmail}
+      - {Key: environment, Value: !Ref environment}
       
   PublicRoute:
     DependsOn: VPCGatewayAttachment
@@ -190,24 +214,22 @@ Resources:
       SubnetId: !Ref publicSubnet2
       RouteTableId: !Ref PublicRouteTable
 
-
   privateRouteTable:
     Type: AWS::EC2::RouteTable
     Properties:
       VpcId: !Ref VPC
       Tags:
-      - {Key: Name, Value: !Join [ "-", [ !Ref uniqueIdentifier, "PrivateRouteTable" ]] }
+      - {Key: Name, Value: !Join [ "-", [ !Ref uniqueIdentifier, !Ref environment, "PrivateRouteTable" ]] }
       - {Key: CostCenter, Value: !Ref uniqueIdentifier}
-      - {Key: TechnicalContactEmail, Value: !Ref technicalContactEmail} 
-      
-      
+      - {Key: TechnicalContactEmail, Value: !Ref technicalContactEmail}
+      - {Key: environment, Value: !Ref environment}
+
   privateRoute:
     Type: AWS::EC2::Route
     Properties:
       RouteTableId: !Ref privateRouteTable
       DestinationCidrBlock: 0.0.0.0/0
       NatGatewayId: !Ref NatGateway0
-
 
   privateSubnet1RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation
@@ -222,7 +244,22 @@ Resources:
       SubnetId: !Ref privateSubnet2
       RouteTableId: !Ref privateRouteTable
 
-
+  s3VPCEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action:
+              - "*"
+            Resource:
+              - "arn:aws:s3:::dev-*/"
+      RouteTableIds:
+        - !Ref privateRouteTable
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      VpcId: !Ref VPC
 
 Outputs:
   VPC:
@@ -230,8 +267,7 @@ Outputs:
     Value: !Ref VPC
     Export:
       Name: !Join [ "-", [ !Ref uniqueIdentifier, "vpc" ]]
-      
-      
+
   PrivateSubnet1:
     Description: Private Subnet 1 
     Value: !Ref privateSubnet1
@@ -250,7 +286,7 @@ Outputs:
     Export:
       Name: !Join [ "-", [ !Ref uniqueIdentifier, "public-subnet-1" ]]
       
-  PrivateSubnet2:
+  PublicSubnet2:
     Description: Public Subnet 2
     Value: !Ref publicSubnet2
     Export:
