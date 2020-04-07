@@ -1,12 +1,6 @@
 AWSTemplateFormatVersion: 2010-09-09
 Description: build out of ec2 instance
 
-
-
-# ami to test to: ami-e689729e
-
-
-
 Parameters:
   
   environment:
@@ -59,18 +53,63 @@ Parameters:
   subnetId:
     Description: Subnet to build ec2 instance in
     Type: AWS::EC2::Subnet::Id
-    
 
     
-    
-    
 Resources:
+
+  iamInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: !Join ["-", [!Ref environment, !Ref uniqueIdentifier, "InstanceProfile", !Select [ "4", !Split [ "-", !Select [ "2", !Split [ "/", !Ref "AWS::StackId" ]]]]]]
+      Roles:
+        - !Ref machineRole
+
+  machineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Join ["-", [!Ref environment, !Ref uniqueIdentifier, !Select [ "4", !Split [ "-", !Select [ "2", !Split [ "/", !Ref "AWS::StackId" ]]]]]]
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: "ec2.amazonaws.com"}
+            Action: ["sts:AssumeRole"]
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM'
+        - 'arn:aws:iam::aws:policy/AmazonEC2ReadOnlyAccess'
+        - 'arn:aws:iam::aws:policy/AWSCodeCommitReadOnly'
+        - 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'
+        - 'arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy'
+      Path: /
+      Policies:
+        - PolicyName: !Sub ${uniqueIdentifier}-machine-policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ['s3:GetBucketLocation','s3:ListAllMyBuckets']
+                Resource: 'arn:aws:s3:::*'
+              - Effect: Allow
+                Action: ['s3:GetObject', 's3:GetObjectTagging', 's3:GetObjectVersion']
+                Resource:
+                  - 'arn:aws:s3:::dev-*'
+                  - 'arn:aws:s3:::dev-dev*/*'
+              - Effect: Allow
+                Action: ['ec2:CreateImage','ec2:CreateTags']
+                Resource: '*'
+              - Effect: Allow
+                Action: ['autoscaling:CreateLaunchConfiguration','autoscaling:UpdateAutoScalingGroup','autoscaling:CreateOrUpdateTags']
+                Resource: '*'
+              - Effect: Allow
+                Action: ['cloudformation:DescribeStackResources']
+                Resource: '*'
 
   ec2Instance:
     DependsOn: ec2InstanceSecurityGroup
     Type: AWS::EC2::Instance
     Properties:
       ImageId: !Ref amiId
+      IamInstanceProfile: !Ref iamInstanceProfile
       KeyName: !Ref keyPairName
       DisableApiTermination: !Ref disableAPITermination
       InstanceType: !Ref instanceType
