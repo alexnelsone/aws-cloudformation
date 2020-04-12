@@ -2,8 +2,6 @@ AWSTemplateFormatVersion: 2010-09-09
 Description: VPC Template that creates vpc with 2 private and 2 public subnets.
 
 Parameters:
-
-
   environment:
     Description: Development Envrionment Name
     Type: String
@@ -22,8 +20,7 @@ Parameters:
   technicalContactEmail:
     Description: Email address to contact for issues/questions about bucket
     Type: String
-    
-    
+
   vpcCidrBlock:
     Description: The CIDR block to use for the vpc
     Type: String
@@ -236,7 +233,6 @@ Resources:
     Properties:
       SubnetId: !Ref privateSubnet1
       RouteTableId: !Ref privateRouteTable
-
       
   privateSubnet2RouteTableAssociation:
     Type: AWS::EC2::SubnetRouteTableAssociation

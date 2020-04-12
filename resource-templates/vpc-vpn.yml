@@ -1,0 +1,188 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "ClientVPN Template"
+
+Parameters:
+
+  clientCidrBlock:
+    Type: String
+
+  description:
+    Type: String
+
+  dnsServers:
+    Type: List<String>
+
+  serverCertificateArn:
+    Type: String
+
+  splitTunnel:
+    Type: String
+    Default: true
+    AllowedValues:
+      - true
+      - false
+
+  transportProtocol:
+    Type: String
+    Default: tcp
+    AllowedValues:
+      - udp
+      - tcp
+
+  directoryId:
+    Type: String
+
+  cloudWatchLogGroup:
+    Type: String
+
+  cloudWatchLogStream:
+    Type: String
+
+  loggingEnabled:
+    Type: String
+    Default: true
+    AllowedValues:
+      - true
+      - false
+
+  clientVPNName:
+    Type: String
+
+  subnetToAssociate1:
+    Type: AWS::EC2::Subnet::Id
+
+  subnetToAssociate2:
+    Type: AWS::EC2::Subnet::Id
+
+  authorizationRuleAccessGroupId:
+    Type: String
+    Default: 'S-1-5-21-2981174969-603990289-2668147020-1144'
+
+  authorizationRuleAuthorizeAllGroups:
+    Type: String
+    Default: true
+    AllowedValues:
+      - true
+      - false
+
+  authorizationRuleDescription:
+    Type: String
+
+  authorizationRuleTargetNetworkCidr:
+    Type: String
+    Default: 0.0.0.0/0
+
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Client VPN Information"
+        Parameters:
+          - clientVPNName
+          - description
+          - clientCidrBlock
+          - dnsServers
+          - serverCertificateArn
+          - splitTunnel
+          - transportProtocol
+          - directoryId
+          - loggingEnabled
+          - cloudWatchLogGroup
+          - cloudWatchLogStream
+      - Label:
+          default: "Subnet Associations"
+        Parameters:
+          - subnetToAssociate1
+          - subnetToAssociate2
+      - Label:
+          default: "Authorization Rule Information"
+        Parameters:
+          - authorizationRuleDescription
+          - authorizationRuleTargetNetworkCidr
+          - authorizationRuleAuthorizeAllGroups
+          - authorizationRuleAccessGroupId
+    ParameterLabels:
+      clientVPNName:
+        default: Name for Client VPN
+      description:
+        default: description for client vpn
+      clientCidrBlock:
+        default: cidr to use for client vpn
+      dnsServers:
+        default: dns servers to use for client vpn
+      serverCertificateArn:
+        default: Server Certificate ARN
+      splitTunnel:
+        default: Enable Split-tunnel
+      transportProtocol:
+        default: Transport Protocol to use
+      directoryId:
+        default: ID of Active Directory
+      loggingEnabled:
+        default: enable logging
+      cloudWatchLogStream:
+        default: CloudWatch log stream to use
+      cloudWatchLogGroup:
+        default: Cloudwatch Log group to use
+      subnetToAssociate1:
+        default: First subnet to associate with ClientVPN
+      subnetToAssociate2:
+        default: Second subnet to associate with ClientVPN
+      authorizationRuleAccessGroupId:
+        default: SID of AD group to allow access to ClientVPN
+      authorizationRuleAuthorizeAllGroups:
+        default: allow any group to access
+      authorizationRuleDescription:
+        default: description for Authorization Rule
+      authorizationRuleTargetNetworkCidr:
+        default: target cidr to allow
+
+
+Resources:
+  ClientVPN:
+    Type: AWS::EC2::ClientVpnEndpoint
+    Properties:
+      Description: !Ref description
+      ClientCidrBlock: !Ref clientCidrBlock
+      DnsServers:
+        - !Select [0, !Ref dnsServers]
+        - !Select [1, !Ref dnsServers]
+      ServerCertificateArn: !Ref serverCertificateArn
+      SplitTunnel: !Ref splitTunnel
+      TransportProtocol: !Ref transportProtocol
+      AuthenticationOptions:
+        - Type: directory-service-authentication
+          ActiveDirectory:
+            DirectoryId: !Ref directoryId
+      ConnectionLogOptions:
+        CloudwatchLogGroup: !Ref cloudWatchLogGroup
+        CloudwatchLogStream: !Ref cloudWatchLogStream
+        Enabled: !Ref loggingEnabled
+      TagSpecifications:
+        - ResourceType: "client-vpn-endpoint"
+          Tags:
+            - Key: "Name"
+              Value: !Ref clientVPNName
+
+  ClientVPNAssociation1:
+    Type: AWS::EC2::ClientVpnTargetNetworkAssociation
+    Properties:
+      ClientVpnEndpointId: !Ref ClientVPN
+      SubnetId: !Ref subnetToAssociate1
+
+  ClientVPNAssociation2:
+    Type: AWS::EC2::ClientVpnTargetNetworkAssociation
+    Properties:
+      ClientVpnEndpointId: !Ref ClientVPN
+      SubnetId: !Ref subnetToAssociate2
+
+
+  ClientVPNAuthorizationRule:
+    Type: AWS::EC2::ClientVpnAuthorizationRule
+    Properties:
+      AccessGroupId: !Ref authorizationRuleAccessGroupId
+      AuthorizeAllGroups: !Ref authorizationRuleAuthorizeAllGroups
+      ClientVpnEndpointId: !Ref ClientVPN
+      Description: !Ref authorizationRuleDescription
+      TargetNetworkCidr: !Ref authorizationRuleTargetNetworkCidr
