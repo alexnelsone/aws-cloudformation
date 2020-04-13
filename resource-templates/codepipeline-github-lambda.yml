@@ -1,7 +1,6 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: "pipeline for lambda deployment"
 
-
 Parameters:
   environment:
     Description: Development Envrionment Name
@@ -57,6 +56,10 @@ Parameters:
     Description: "this comes from github. if you have a service acount in github for this build, it will be the oauth token associated with that account."
     NoEcho: true
 
+  githubOauthTokenSSMKey:
+    Type: "AWS::SSM::Parameter::Value<String>"
+    Description: "the ssm key that holds the oauth token in parameter store."
+
   buildProjectImage:
     Type: String
     Default: "aws/codebuild/docker:17.09.0"
@@ -93,6 +96,7 @@ Metadata:
           Parameters:
             - githubSecret
             - githubOauthToken
+            - githubOauthTokenSSMKey
         - Label:
             default: "Codebuild Project Information"
           Parameters:
@@ -130,6 +134,8 @@ Metadata:
           default: "Select the security group id"
         githubSecret:
           default: "Github Secret"
+        githubOauthTokenSSMKey:
+          default: "Key for Oauth token in Parameter Store"
         githubOauthToken:
           default: "Github oauth Token"
         buildspecFileName:
@@ -140,6 +146,80 @@ Metadata:
           default: "The name of the Lambda deployment template"
 
 Resources:
+
+  lambdaDeploymentRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref applicationName, "lambda-deployment-service-role" ]]
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - cloudformation.amazonaws.com
+                - lambda.amazonaws.com
+                - codebuild.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref applicationName, "lambda-deployment-service-role-policy" ]]
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'cloudformation:*'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'logs:*'
+                Resource:
+                  - 'arn:aws:logs:*:*:*'
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                  - 's3:PutObject'
+                Resource:
+                  - 'arn:aws:s3:::*'
+              - Effect: Allow
+                Action:
+                  - iam:GetRole
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:PutRolePolicy
+                  - iam:AttachRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:PassRole
+                  - iam:GetRolePolicy
+                Resource:
+                  - '*'
+              - Effect: Allow
+                Action:
+                  - lambda:GetFunction
+                  - lambda:CreateFunction
+                  - lambda:UpdateFunctionCode
+                  - lambda:DeleteFunction
+                  - lambda:GetFunctionConfiguration
+                  - lambda:ListTags
+                  - lambda:TagResource
+                  - lambda:UntagResource
+                  - lambda:AddPermission
+                  - lambda:UpdateFunctionConfiguration
+                  - lambda:RemovePermission
+                Resource:
+                  - '*'
+              - Effect: Allow
+                Action:
+                  - events:DescribeRule
+                  - events:PutRule
+                  - events:RemoveTargets
+                  - events:PutTargets
+                  - events:DeleteRule
+                Resource:
+                  - '*'
+
   codepipelineServiceRole:
     Type: 'AWS::IAM::Role'
     Properties:
@@ -278,7 +358,7 @@ Resources:
                 Owner: !Ref githubOwner
                 Repo: !Ref repositoryName
                 Branch: !Ref branchName
-                OAuthToken: !Ref githubOauthToken
+                OAuthToken: !Ref githubOauthTokenSSMKey
                 PollForSourceChanges: false
               RunOrder: 1
         - Name: Build
