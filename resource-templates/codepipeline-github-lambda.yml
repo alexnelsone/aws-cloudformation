@@ -1,0 +1,253 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "pipeline for lambda deployment"
+
+
+Parameters:
+  environment:
+    Description: Development Envrionment Name
+    Type: String
+    Default: "dev"
+    AllowedValues:
+      - "dev"
+      - "prod"
+
+  uniqueIdentifier:
+    Type: String
+    Description: "a unique organization identifier. This will be the prefix for the created resources."
+
+  applicationName:
+    Type: String
+    Description: "the name of the application that the pipeline builds. the unique identifier will be added as a prefix"
+
+  codebuildProjectName:
+    Type: String
+    Description: "the name to use for the codebuild project. the unique identifier will be added as a prefix."
+
+  codebuildProjectDescription:
+    Type: String
+    Description: "Brief desciption to use for the codebuild project."
+
+  vpcId:
+    Type: "AWS::EC2::VPC::Id"
+
+  subnets:
+    Type: List<AWS::EC2::Subnet::Id>
+
+  securityGroupIds:
+    # TODO: create and use a security group in this template
+    # Should this be a list?
+    Type: AWS::EC2::SecurityGroup::Id
+
+  githubOwner:
+    Type: String
+
+  repositoryName:
+    Type: String
+
+  branchName:
+    Type: String
+
+  githubSecret:
+    Type: String
+    NoEcho: true
+
+  githubOauthToken:
+    # TODO: make this an ssm parameter lookup
+    Type: String
+    Description: "this comes from github. if you have a service acount in github for this build, it will be the oauth token associated with that account."
+    NoEcho: true
+
+  buildProjectImage:
+    Type: String
+    Default: "aws/codebuild/docker:17.09.0"
+    AllowedValues:
+      - "aws/codebuild/standard:2.0"
+      - "aws/codebuild/docker:17.09.0"
+      - "aws/codebuild/python2.7.12"
+      - "aws/codebuild/amazonlinux2-x86_64-standard:2.0"
+      - "aws/codebuild/amazonlinux2-x86_64-standard:3.0"
+
+  buildspecFileName:
+    Type: String
+    Default: "buildspec.yaml"
+
+  stackNameToUpdate:
+    Type: String
+    Description: "the name of the lambda cloudformation stack"
+
+  deploymentTemplateName:
+    Type: String
+
+
+Metadata:
+    AWS::Cloudformation::Interface:
+      ParameterGroups:
+        - Label:
+            default: "General Information"
+          Parameters:
+            - "environment"
+            - "uniqueIdentifier"
+            - "applicationName"
+        - Label:
+            default: "Github Information"
+          Parameters:
+            - githubSecret
+            - githubOauthToken
+        - Label:
+            default: "Codebuild Project Information"
+          Parameters:
+            - codebuildProjectName
+            - codebuildProjectDescription
+            - buildspecFileName
+        - Label:
+            default: "Network Information"
+          Parameters:
+            - vpcId
+            - subnets
+            - securityGroupIds
+        - Label:
+            default: "Lambda Information"
+          Parameters:
+            - stackNameToUpdate
+            - deploymentTemplateName
+
+      ParameterLabels:
+        environment:
+          default: "Development environment for this template"
+        uniqueIdentifier:
+          default: "Unique Identifier"
+        applicationName:
+          default: "Application Name"
+        codebuildProjectName:
+          default: "The name of the CodeBuild Project"
+        codebuildProjectDescription:
+          default: "Description to use for the Codebuild Project"
+        vpcId:
+          default: "Select the VPC"
+        subnets:
+          default: "Select the Subnets"
+        securityGroupIds:
+          default: "Select the security group id"
+        githubSecret:
+          default: "Github Secret"
+        githubOauthToken:
+          default: "Github oauth Token"
+        buildspecFileName:
+          default: "Buildspec filename"
+        stackNameToUpdate:
+          default: "The Cloudformation stack to update"
+        deploymentTemplateName:
+          default: "The name of the Lambda deployment template"
+
+Resources:
+  codePipelineServiceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref applicationName, "pipeline-service-role" ]]
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - cloudformation.amazonaws.com
+                - lambda.amazonaws.com
+                - codepipeline.amazonaws.com
+                - codebuild.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref applicationName, "pipeline-service-role-policy" ]]
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'codecommit:CancelUploadArchive'
+                  - 'codecommit:GetBranch'
+                  - 'codecommit:GetCommit'
+                  - 'codecommit:GetUploadArchiveStatus'
+                  - 'codecommit:UploadArchive'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'codedeploy:CreateDeployment'
+                  - 'codedeploy:GetApplicationRevision'
+                  - 'codedeploy:GetDeployment'
+                  - 'codedeploy:GetDeploymentConfig'
+                  - 'codedeploy:RegisterApplicationRevision'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'codebuild:BatchGetBuilds'
+                  - 'codebuild:StartBuild'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'iam:PassRole'
+                  - 'iam:CreateRole'
+                  - 'iam:GetPolicy'
+                  - 'iam:GetPolicyVersion'
+                  - 'iam:GetRole'
+                  - 'iam:GetRolePolicy'
+                  - 'iam:ListAttachedRolePolicies'
+                  - 'iam:ListRolePolicies'
+                  - 'iam:ListRoles'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'cloudwatch:*'
+                  - 's3:*'
+                  - 'sns:*'
+                  - 'lambda:*'
+                  - 'cloudformation:*'
+                  - 'ec2:DescribeSecurityGroups'
+                  - 'ec2:DescribeSubnets'
+                  - 'ec2:CreateNetworkInterface'
+                  - 'ec2:DescribeNetworkInterfaces'
+                  - 'ec2:DeleteNetworkInterface'
+                  - 'ec2:DescribeDhcpOptions'
+                  - 'ec2:DescribeVpcs'
+                  - 'ec2:DescribeSecurityGroups'
+                  - 'ec2:DescribeSubnets'
+                  - 'ec2:CreateNetworkInterfacePermission'
+                  - 'logs:PutLogEvents'
+                  - 'logs:CreateLogStream'
+                  - 'logs:CreateLogGroup'
+                  - "ecr:GetAuthorizationToken"
+                  - "ecr:BatchCheckLayerAvailability"
+                  - "ecr:GetDownloadUrlForLayer"
+                  - "ecr:GetRepositoryPolicy"
+                  - "ecr:DescribeRepositories"
+                  - "ecr:ListImages"
+                  - "ecr:DescribeImages"
+                  - "ecr:BatchGetImage"
+                  - "ecr:InitiateLayerUpload"
+                  - "ecr:UploadLayerPart"
+                  - "ecr:CompleteLayerUpload"
+                  - "ecr:PutImage"
+                Resource: '*'
+
+  codebuildProject:
+    Type: "AWS::CodeBuild::Project"
+    Properties:
+      Name: !Ref codebuildProjectName
+      Description: !Ref codebuildProjectDescription
+      ServiceRole: !Ref codepipelineServiceRole
+      Artifacts:
+        Type: CODEPIPELINE
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: !Ref buildspecFileName
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: !Ref buildProjectImage
+      Cache:
+        Type: NO_CACHE
+      VpcConfig:
+        VpcId: !Ref vpcId
+        Subnets:
+          - !Ref subnets
+        SecurityGroupIds:
+          - !Ref securityGroupIds
