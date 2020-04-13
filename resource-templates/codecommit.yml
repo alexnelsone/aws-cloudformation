@@ -44,7 +44,31 @@ Resources:
       RepositoryName: !Sub ${uniqueIdentifier}-${repositoryName}
   #    Triggers:
   #    - Trigger
-  
+
+  masterBranchProtection:
+    Type: 'AWS::IAM::ManagedPolicy'
+    Properties:
+      Description: 'protects master branch of codecommit repository from direct commits'
+      Path: /
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Deny
+            Action:
+              - "codecommit:GitPush"
+              - "codecommit:DeleteBranch"
+              - "codecommit:PutFile"
+              - "codecommit:MergeBranchesByFastForward"
+              - "codecommit:MergeBranchesBySquash"
+              - "codecommit:MergeBranchesByThreeWay"
+              - "codecommit:MergePullRequestByFastForward"
+              - "codecommit:MergePullRequestBySquash"
+              - "codecommit:MergePullRequestByThreeWay"
+            Resource: !GetAtt codeCommitRepository.Arn
+            Condition:
+              "StringEqualsIfExists":
+                'codecommit:References': 'ref/heads/master'
+
 
 Outputs:
   RepoSshCloneUrl:
@@ -52,16 +76,19 @@ Outputs:
     Value: !GetAtt codeCommitRepository.CloneUrlSsh
     Export:
       Name: !Sub '${AWS::StackName}-ssh-url'
+
   RepoHttpCloneUrl:
     Description: 'HTTPS Clone URL for repository'
     Value: !GetAtt codeCommitRepository.CloneUrlHttp
     Export:
       Name: !Sub '${AWS::StackName}-https-url'
+
   RepoArn:
     Description: 'Repo ARN'
     Value: !GetAtt codeCommitRepository.Arn
     Export:
       Name: !Sub '${AWS::StackName}-arn'
+
   RepoName:
     Description: 'Repo Name'
     Value: !GetAtt codeCommitRepository.Name
