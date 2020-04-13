@@ -50,15 +50,10 @@ Parameters:
     Type: String
     NoEcho: true
 
-  githubOauthToken:
-    # TODO: make this an ssm parameter lookup
+  githubOauthTokenSSMKey:
     Type: String
     Description: "this comes from github. if you have a service acount in github for this build, it will be the oauth token associated with that account."
     NoEcho: true
-
-  githubOauthTokenSSMKey:
-    Type: "AWS::SSM::Parameter::Value<String>"
-    Description: "the ssm key that holds the oauth token in parameter store."
 
   buildProjectImage:
     Type: String
@@ -358,7 +353,7 @@ Resources:
                 Owner: !Ref githubOwner
                 Repo: !Ref repositoryName
                 Branch: !Ref branchName
-                OAuthToken: !Ref githubOauthTokenSSMKey
+                OAuthToken: !Sub '{{resolve:ssm-secure:${githubOauthTokenSSMKey}}'
                 PollForSourceChanges: false
               RunOrder: 1
         - Name: Build
