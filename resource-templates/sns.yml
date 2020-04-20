@@ -57,6 +57,9 @@ Resources:
       Description: "KMS key for SNS"
       Enabled: true
       EnableKeyRotation: true
+      Tags:
+        - Key: environment
+          Value: !Ref environment
       KeyPolicy:
         Version: "2012-10-17"
         Statement:
