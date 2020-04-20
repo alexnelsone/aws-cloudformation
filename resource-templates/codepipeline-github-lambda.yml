@@ -1,0 +1,442 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "pipeline for lambda deployment"
+
+Parameters:
+  environment:
+    Description: Development Envrionment Name
+    Type: String
+    Default: "dev"
+    AllowedValues:
+      - "dev"
+      - "prod"
+
+  uniqueIdentifier:
+    Type: String
+    Description: "a unique organization identifier. This will be the prefix for the created resources."
+
+  applicationName:
+    Type: String
+    Description: "the name of the application that the pipeline builds. the unique identifier will be added as a prefix"
+
+  codebuildProjectName:
+    Type: String
+    Description: "the name to use for the codebuild project. the unique identifier will be added as a prefix."
+
+  codebuildProjectDescription:
+    Type: String
+    Description: "Brief desciption to use for the codebuild project."
+
+  vpcId:
+    Type: "AWS::EC2::VPC::Id"
+
+  subnets:
+    Type: List<AWS::EC2::Subnet::Id>
+
+  securityGroupIds:
+    # TODO: create and use a security group in this template
+    # Should this be a list?
+    Type: AWS::EC2::SecurityGroup::Id
+
+  githubOwner:
+    Type: String
+
+  repositoryName:
+    Type: String
+
+  branchName:
+    Type: String
+
+  githubSecret:
+    Type: String
+    NoEcho: true
+
+  githubOauthTokenSSMKey:
+    Type: String
+    Description: "this comes from github. if you have a service acount in github for this build, it will be the oauth token associated with that account."
+    NoEcho: true
+
+  buildProjectImage:
+    Type: String
+    Default: "aws/codebuild/docker:17.09.0"
+    AllowedValues:
+      - "aws/codebuild/standard:2.0"
+      - "aws/codebuild/docker:17.09.0"
+      - "aws/codebuild/python2.7.12"
+      - "aws/codebuild/amazonlinux2-x86_64-standard:2.0"
+      - "aws/codebuild/amazonlinux2-x86_64-standard:3.0"
+
+  buildspecFileName:
+    Type: String
+    Default: "buildspec.yaml"
+
+  stackNameToUpdate:
+    Type: String
+    Description: "the name of the lambda cloudformation stack"
+
+  deploymentTemplateName:
+    Type: String
+
+
+Metadata:
+    AWS::Cloudformation::Interface:
+      ParameterGroups:
+        - Label:
+            default: "General Information"
+          Parameters:
+            - "environment"
+            - "uniqueIdentifier"
+            - "applicationName"
+        - Label:
+            default: "Github Information"
+          Parameters:
+            - githubSecret
+            - githubOauthToken
+            - githubOauthTokenSSMKey
+        - Label:
+            default: "Codebuild Project Information"
+          Parameters:
+            - codebuildProjectName
+            - codebuildProjectDescription
+            - buildspecFileName
+        - Label:
+            default: "Network Information"
+          Parameters:
+            - vpcId
+            - subnets
+            - securityGroupIds
+        - Label:
+            default: "Lambda Information"
+          Parameters:
+            - stackNameToUpdate
+            - deploymentTemplateName
+
+      ParameterLabels:
+        environment:
+          default: "Development environment for this template"
+        uniqueIdentifier:
+          default: "Unique Identifier"
+        applicationName:
+          default: "Application Name"
+        codebuildProjectName:
+          default: "The name of the CodeBuild Project"
+        codebuildProjectDescription:
+          default: "Description to use for the Codebuild Project"
+        vpcId:
+          default: "Select the VPC"
+        subnets:
+          default: "Select the Subnets"
+        securityGroupIds:
+          default: "Select the security group id"
+        githubSecret:
+          default: "Github Secret"
+        githubOauthTokenSSMKey:
+          default: "Key for Oauth token in Parameter Store"
+        githubOauthToken:
+          default: "Github oauth Token"
+        buildspecFileName:
+          default: "Buildspec filename"
+        stackNameToUpdate:
+          default: "The Cloudformation stack to update"
+        deploymentTemplateName:
+          default: "The name of the Lambda deployment template"
+
+Resources:
+
+  lambdaDeploymentRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref applicationName, "lambda-deployment-service-role" ]]
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - cloudformation.amazonaws.com
+                - lambda.amazonaws.com
+                - codebuild.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref applicationName, "lambda-deployment-service-role-policy" ]]
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'cloudformation:*'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'logs:*'
+                Resource:
+                  - 'arn:aws:logs:*:*:*'
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                  - 's3:PutObject'
+                Resource:
+                  - 'arn:aws:s3:::*'
+              - Effect: Allow
+                Action:
+                  - iam:GetRole
+                  - iam:CreateRole
+                  - iam:DeleteRole
+                  - iam:PutRolePolicy
+                  - iam:AttachRolePolicy
+                  - iam:DeleteRolePolicy
+                  - iam:DetachRolePolicy
+                  - iam:PassRole
+                  - iam:GetRolePolicy
+                Resource:
+                  - '*'
+              - Effect: Allow
+                Action:
+                  - lambda:GetFunction
+                  - lambda:CreateFunction
+                  - lambda:UpdateFunctionCode
+                  - lambda:DeleteFunction
+                  - lambda:GetFunctionConfiguration
+                  - lambda:ListTags
+                  - lambda:TagResource
+                  - lambda:UntagResource
+                  - lambda:AddPermission
+                  - lambda:UpdateFunctionConfiguration
+                  - lambda:RemovePermission
+                Resource:
+                  - '*'
+              - Effect: Allow
+                Action:
+                  - events:DescribeRule
+                  - events:PutRule
+                  - events:RemoveTargets
+                  - events:PutTargets
+                  - events:DeleteRule
+                Resource:
+                  - '*'
+
+  codepipelineServiceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref applicationName, "pipeline-service-role" ]]
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - cloudformation.amazonaws.com
+                - lambda.amazonaws.com
+                - codepipeline.amazonaws.com
+                - codebuild.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref applicationName, "pipeline-service-role-policy" ]]
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'codecommit:CancelUploadArchive'
+                  - 'codecommit:GetBranch'
+                  - 'codecommit:GetCommit'
+                  - 'codecommit:GetUploadArchiveStatus'
+                  - 'codecommit:UploadArchive'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'codedeploy:CreateDeployment'
+                  - 'codedeploy:GetApplicationRevision'
+                  - 'codedeploy:GetDeployment'
+                  - 'codedeploy:GetDeploymentConfig'
+                  - 'codedeploy:RegisterApplicationRevision'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'codebuild:BatchGetBuilds'
+                  - 'codebuild:StartBuild'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'iam:PassRole'
+                  - 'iam:CreateRole'
+                  - 'iam:GetPolicy'
+                  - 'iam:GetPolicyVersion'
+                  - 'iam:GetRole'
+                  - 'iam:GetRolePolicy'
+                  - 'iam:ListAttachedRolePolicies'
+                  - 'iam:ListRolePolicies'
+                  - 'iam:ListRoles'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'cloudwatch:*'
+                  - 's3:*'
+                  - 'sns:*'
+                  - 'lambda:*'
+                  - 'cloudformation:*'
+                  - 'ec2:DescribeSecurityGroups'
+                  - 'ec2:DescribeSubnets'
+                  - 'ec2:CreateNetworkInterface'
+                  - 'ec2:DescribeNetworkInterfaces'
+                  - 'ec2:DeleteNetworkInterface'
+                  - 'ec2:DescribeDhcpOptions'
+                  - 'ec2:DescribeVpcs'
+                  - 'ec2:DescribeSecurityGroups'
+                  - 'ec2:DescribeSubnets'
+                  - 'ec2:CreateNetworkInterfacePermission'
+                  - 'logs:PutLogEvents'
+                  - 'logs:CreateLogStream'
+                  - 'logs:CreateLogGroup'
+                  - "ecr:GetAuthorizationToken"
+                  - "ecr:BatchCheckLayerAvailability"
+                  - "ecr:GetDownloadUrlForLayer"
+                  - "ecr:GetRepositoryPolicy"
+                  - "ecr:DescribeRepositories"
+                  - "ecr:ListImages"
+                  - "ecr:DescribeImages"
+                  - "ecr:BatchGetImage"
+                  - "ecr:InitiateLayerUpload"
+                  - "ecr:UploadLayerPart"
+                  - "ecr:CompleteLayerUpload"
+                  - "ecr:PutImage"
+                Resource: '*'
+
+  codebuildProject:
+    Type: "AWS::CodeBuild::Project"
+    Properties:
+      Name: !Ref codebuildProjectName
+      Description: !Ref codebuildProjectDescription
+      ServiceRole: !Ref codepipelineServiceRole
+      Artifacts:
+        Type: CODEPIPELINE
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: !Ref buildspecFileName
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: !Ref buildProjectImage
+      Cache:
+        Type: NO_CACHE
+      VpcConfig:
+        VpcId: !Ref vpcId
+        Subnets:
+          - !Ref subnets
+        SecurityGroupIds:
+          - !Ref securityGroupIds
+
+  applicationPipeline:
+    Type: "AWS::CodePipeline::Pipeline"
+    Properties:
+      Name: !Sub ${uniqueIdentifier}-${applicationName}-pipeline
+      RoleArn: !GetAtt codepipelineServiceRole.Arn
+      ArtifactStore:
+        Location: !Join [ "-", [ !Ref environment, !Ref uniqueIdentifier, 'pipeline-artifact-store', !Ref "AWS::Region" ]]
+        Type: S3
+        EncryptionKey:
+          Id: 47ca8eee-c3ba-4efd-8fa9-b244ef3e7da2
+          Type: KMS
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: SourceAction
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Version: 1
+                Provider: GitHub
+              OutputArtifacts:
+                - Name: SourceOutput
+              Configuration:
+                Owner: !Ref githubOwner
+                Repo: !Ref repositoryName
+                Branch: !Ref branchName
+                OAuthToken: !Sub '{{resolve:ssm-secure:${githubOauthTokenSSMKey}}'
+                PollForSourceChanges: false
+              RunOrder: 1
+        - Name: Build
+          Actions:
+            - Name: !Sub ${uniqueIdentifier}-${applicationName}-Pipeline
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: 1
+              Configuration:
+                ProjectName: !Ref codebuildProjectName
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: templateSource
+              RunOrder: 2
+        - Name: CreateChangeSet
+          Actions:
+            - Name: createChangeSet
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: 1
+              Configuration:
+                ActionMode: CHANGE_SET_REPLACE
+                StackName: !Sub ${stackNameToUpdate}
+                #              RoleArn: !Ref CodePipelineServiceRole
+                RoleArn: 'arn:aws:iam::077375377515:role/wisetail-lambda-slack-notifier-lambda-deployment-service-role'
+                #              RoleArn: "arn:aws:iam::077375377515:role/test_pipeline_lambda"
+                TemplatePath: !Join [ "", [ "templateSource::", !Ref deploymentTemplateName ]]
+                ChangeSetName: !Join ["", [ !Ref stackNameToUpdate, "ChangeSet" ]]
+                Capabilities: CAPABILITY_NAMED_IAM
+              InputArtifacts:
+                - Name: templateSource
+              RunOrder: 4
+      - Name: Approval
+        Actions:
+        - Name: Approval
+          ActionTypeId:
+            Category: Approval
+            Owner: AWS
+            Provider: Manual
+            Version: 1
+          Configuration:
+            CustomData: 'Do you want to execute a change set against the stack?'
+#              NotificationArn: !Ref codepipelineSNS
+          RunOrder: 5
+        - Name: DeployChangeSet
+          Actions:
+            - Name: ExecuteChangeSet
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: 1
+              Configuration:
+                ActionMode: CHANGE_SET_EXECUTE
+                ChangeSetName: !Join ["", [ !Ref stackNameToUpdate, "ChangeSet" ]]
+                StackName: !Sub ${stackNameToUpdate}
+              RunOrder: 6
+
+  githubWebHook:
+    Type: "AWS::CodePipeline::Webhook"
+    Properties:
+      Authentication: GITHUB_HMAC
+      AuthenticationConfiguration:
+        SecretToken: !Ref githubSecret
+      Filters:
+        - JsonPath: $.ref
+          MatchEquals: "refs/heads/${Branch}"
+      TargetPipeline: !Ref applicationPipeline
+      TargetAction: SourceAction
+      Name: !Join ["-", [ !Ref environment, !Ref uniqueIdentifier, !Ref applicationName, !Ref "AWS::Region"]]
+      TargetPipelineVersion: !GetAtt
+        - applicationPipeline
+        - Version
+      RegisterWithThirdParty: true
+
+Outputs:
+  CodePipelineServiceRole:
+    Description: Role used for Pipeline
+    Value: !GetAtt codepipelineServiceRole.Arn
+    Export:
+      Name: !Sub "${uniqueIdentifier}-${applicationName}-pipeline-role-name"
