@@ -106,7 +106,7 @@ Resources:
     UpdateReplacePolicy: Retain
     Type: 'AWS::KMS::Alias'
     Properties:
-      AliasName: !Join [ "/", ['alias', !Join ["-", [!Ref environment, !Ref uniqueIdentifier, !Select [ "4", !Split [ "-", !Select [ "2", !Split [ "/", !Ref "AWS::StackId" ]]]]]]]]
+      AliasName: !Join [ "/", ['alias', !Join ["-", [!Ref environment, !Ref uniqueIdentifier, !Ref applicationName,  [ "4", !Split [ "-", !Select [ "2", !Split [ "/", !Ref "AWS::StackId" ]]]]]]]]
       TargetKeyId: !Ref KMSKey
 
   snsTopic:
