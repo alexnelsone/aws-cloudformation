@@ -1,0 +1,137 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: SNS template with CMK
+
+Parameters:
+  environment:
+    Description: Development Envrionment Name
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - stage
+      - qa
+      - prod
+
+  uniqueIdentifier:
+    Description: A unique identifier to associate who this pipeline is for
+    Type: String
+    Default: uniqueId
+
+  applicationName:
+    Description: application name this topic is for
+    Type: String
+
+  iamRoleArn:
+    Description: arn of role that can manage the kms key
+    Type: String
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Applications SNS Topic with Encryption"
+        Parameters:
+          - environment
+          - uniqueIdentifier
+          - applicationName
+          - iamRoleArn
+    ParameterLabels:
+      environment:
+        default: Development environment for this template
+      uniqueIdentifier:
+        default: A unique Identifier to prefix the topic with
+      applicationName:
+        default: The name of the application or project that will use this topic
+      iamRoleArn:
+        default: the arn of the role that will be used to manage the KMSKey
+
+
+Resources:
+
+  KMSKey:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Type: "AWS::KMS::Key"
+    Properties:
+      Description: "KMS key for SNS"
+      Enabled: true
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              AWS:
+              - !Sub 'arn:aws:iam::${AWS::AccountId}:root'
+            Action: 'kms:*'
+          - Effect: Allow
+            Principal:
+              AWS:
+              - !Ref iamRoleArn
+            Action:
+              - kms:Create*
+              - kms:Describe*
+              - kms:Enable*
+              - kms:List*
+              - kms:Put*
+              - kms:Update*
+              - kms:Revoke*
+              - kms:Disable*
+              - kms:Get*
+              - kms:Delete*
+              - kms:ScheduleKeyDeletion
+              - kms:CancelKeyDeletion
+            Resource: '*'
+          - Effect: Allow
+            Principal:
+              AWS: '*'
+            Action:
+              - kms:DescribeKey
+              - kms:Encrypt
+              - kms:Decrypt
+              - kms:ReEncrypt*
+              - kms:GenerateDataKey
+              - kms:GenerateDataKeyWithoutPlaintext
+            Resource: '*'
+            Condition:
+              StringEquals:
+                'kms:ViaService': !Sub 'sns.${AWS::Region}.amazonaws.com'
+
+  KeyAlias:
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Type: 'AWS::KMS::Alias'
+    Properties:
+      AliasName: !Join [ "/", ['alias', !Join ["-", [!Ref environment, !Ref uniqueIdentifier, !Select [ "4", !Split [ "-", !Select [ "2", !Split [ "/", !Ref "AWS::StackId" ]]]]]]]]
+      TargetKeyId: !Ref KMSKey
+
+  snsTopic:
+    Type: 'AWS::SNS::Topic'
+    Properties:
+      DisplayName: !Sub ${uniqueIdentifier}-sns-${applicationName}-sns-topic
+      TopicName: !Sub ${uniqueIdentifier}-sns-${applicationName}-sns-topic
+      KmsMasterKeyId: !Ref KMSKey
+      Tags:
+        - Key: environment
+          Value: !Ref environment
+
+Outputs:
+  KeyId:
+    Description: 'KMS Key Id'
+    Value: !Ref KMSKey
+    Export:
+      Name: !Sub ${applicationName}-kms-KeyId
+
+  KeyArn:
+    Description: 'KMS Key Arn'
+    Value: !GetAtt KMSKey.Arn
+    Export:
+      Name: !Sub ${applicationName}-kms-KeyArn
+
+  snsTopic:
+    Description: 'SNS Topic Arn'
+    Value: !Ref snsTopic
+    Export:
+      Name: !Sub ${applicationName}-sns-TopicArn
+
+
