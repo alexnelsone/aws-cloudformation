@@ -24,6 +24,7 @@ Parameters:
   iamRoleArn:
     Description: arn of role that can manage the kms key
     Type: String
+    Default: ''
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -56,6 +57,9 @@ Resources:
       Description: "KMS key for SNS"
       Enabled: true
       EnableKeyRotation: true
+      Tags:
+        - Key: environment
+          Value: !Ref environment
       KeyPolicy:
         Version: "2012-10-17"
         Statement:
@@ -102,14 +106,14 @@ Resources:
     UpdateReplacePolicy: Retain
     Type: 'AWS::KMS::Alias'
     Properties:
-      AliasName: !Join [ "/", ['alias', !Join ["-", [!Ref environment, !Ref uniqueIdentifier, !Select [ "4", !Split [ "-", !Select [ "2", !Split [ "/", !Ref "AWS::StackId" ]]]]]]]]
+      AliasName: !Join [ "/", ['alias', !Join ["-", [!Ref environment, !Ref uniqueIdentifier, !Ref applicationName,  [ "4", !Split [ "-", !Select [ "2", !Split [ "/", !Ref "AWS::StackId" ]]]]]]]]
       TargetKeyId: !Ref KMSKey
 
   snsTopic:
     Type: 'AWS::SNS::Topic'
     Properties:
-      DisplayName: !Sub ${uniqueIdentifier}-sns-${applicationName}-sns-topic
-      TopicName: !Sub ${uniqueIdentifier}-sns-${applicationName}-sns-topic
+      DisplayName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-sns-topic
+      TopicName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-sns-topic
       KmsMasterKeyId: !Ref KMSKey
       Tags:
         - Key: environment
@@ -120,18 +124,18 @@ Outputs:
     Description: 'KMS Key Id'
     Value: !Ref KMSKey
     Export:
-      Name: !Sub ${applicationName}-kms-KeyId
+      Name: !Sub ${applicationName}-kms-${environment}-KeyId
 
   KeyArn:
     Description: 'KMS Key Arn'
     Value: !GetAtt KMSKey.Arn
     Export:
-      Name: !Sub ${applicationName}-kms-KeyArn
+      Name: !Sub ${applicationName}-kms-${environment}-KeyArn
 
   snsTopic:
     Description: 'SNS Topic Arn'
     Value: !Ref snsTopic
     Export:
-      Name: !Sub ${applicationName}-sns-TopicArn
+      Name: !Sub ${applicationName}-sns-${environment}-TopicArn
 
 
