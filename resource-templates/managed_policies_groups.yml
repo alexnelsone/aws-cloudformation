@@ -1,0 +1,63 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: SNS template with CMK
+
+Parameters:
+  environment:
+    Description: Development Envrionment Name
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - stage
+      - qa
+      - prod
+
+  uniqueIdentifier:
+    Description: A unique identifier to associate who this pipeline is for
+    Type: String
+    Default: uniqueId
+
+
+
+Resources:
+
+  EKSAdministratorsGroup:
+    Type: "AWS::IAM::Group"
+    Properties:
+      GroupName: !Sub "${uniqueIdentifier}-${environment}-EKS-Administrators"
+      ManagedPolicyArns:
+        - !Ref EKSAdmin
+        - !Ref CFNAdmin
+        - arn:aws:iam::aws:policy/IAMFullAccess
+        - arn:aws:iam::aws:policy/AmazonVPCFullAccess
+        - arn:aws:iam:aws:policy/AmazonEC2FullAccess
+
+
+  EKSAdmin:
+    Type: "AWS::IAM::ManagedPolicy"
+    Properties:
+      ManagedPolicyName: !Sub "${uniqueIdentifier}-${environment}-EKS-Administrators-Policy"
+      Description: "Allows administration of eks"
+      Path: "/"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - "Sid": "EKSAdministratorsGroup"
+            "Effect": Allow
+            "Resource": "*"
+            "Action":
+              - "eks:*"
+
+  CFNAdmin:
+    Type: "AWS::IAM::ManagedPolicy"
+    Properties:
+      ManagedPolicyName: !Sub "${uniqueIdentifier}-${environment}-Cloudformation-Administrators-Policy"
+      Description: "Allows administration of cloudformation"
+      Path: "/"
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - "Sid": "CloudformationAdministration"
+            "Effect": Allow
+            "Resource": "*"
+            "Action": "cloudformation:*"
