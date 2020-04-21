@@ -22,7 +22,7 @@ Resources:
         Statement:
           - "Sid": "AllowUsersToManageTheirOwnPasswordsAndKeys"
             "Effect": Allow
-            "Resource": "arn:aws:iam::ACCOUNT_NUM:user/${aws:username}"
+            "Resource": !Sub "arn:aws:iam::${AWS::AccountId}:user/${aws:username}"
             "Action":
               - "iam:*LoginProfile"
               - "iam:*AccessKey"
@@ -38,8 +38,8 @@ Resources:
           - "Sid": "AllowUsersToCreateEnableResyncDeleteTheirOwnVirtualMFADevice"
             "Effect": Allow
             "Resource":
-              - "arn:aws:iam::ACCOUNT_NUM:mfa/${aws:username}"
-              - "arn:aws:iam::ACCOUNT_NUM:user/${aws:username}"
+              - !Sub "arn:aws:iam::${AWS::AccountId}:mfa/${aws:username}"
+              - !Sub "arn:aws:iam::${AWS::AccountId}:user/${aws:username}"
             "Action":
               - "iam:CreateVirtualMFADevice"
               - "iam:EnableMFADevice"
@@ -48,8 +48,8 @@ Resources:
           - "Sid": "AllowUsersToDeactivateTheirOwnVirtualMFADevice"
             "Effect": Allow
             "Resource":
-              - "arn:aws:iam::ACCOUNT_NUM:mfa/${aws:username}"
-              - "arn:aws:iam::ACCOUNT_NUM:user/${aws:username}"
+              - !Sub "arn:aws:iam::${AWS::AccountId}:mfa/${aws:username}"
+              - !Sub "arn:aws:iam::${AWS::AccountId}:user/${aws:username}"
             "Action":
               - "iam:DeactivateMFADevice"
             "Condition":
