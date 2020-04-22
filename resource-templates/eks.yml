@@ -1,0 +1,87 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "Creates Kubernetes Cluster"
+
+Parameters:
+  environment:
+    Description: Development Envrionment Name
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - stage
+      - qa
+      - prod
+
+  uniqueIdentifier:
+    Description: A unique identifier to associate who this pipeline is for
+    Type: String
+    Default: uniqueId
+
+  applicationName:
+    Description: application name this topic is for
+    Type: String
+
+  vpcId:
+    Type: AWS::EC2::VPC::Id
+
+  subnetId:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: "select two"
+
+  securityGroupIds:
+    Type: List<AWS::EC2::SecurityGroup::Id>
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Application Information"
+        Parameters:
+          - environment
+          - uniqueIdentifier
+          - applicationName
+      - Label:
+          default: "Network Information"
+        Parameters:
+          - vpcId
+          - subnetId
+          - securityGroupIds
+    ParameterLabels:
+      environment:
+        default: Development environment for this template
+      uniqueIdentifier:
+        default: A unique Identifier to prefix the topic with
+      applicationName:
+        default: The name of the application or project that will use this topic
+
+
+Resources:
+  kubernetesCluster:
+    Type: AWS::EKS::Cluster
+    Properties:
+      Name:  !Join [ "-", [ !Ref uniqueIdentifier, !Ref applicationName, "kubernetes-cluster" ]]
+      Version: '1.11'
+      RoleArn: !GetAtt kubernetesServiceRole.Arn
+      ResourcesVpcConfig:
+        SecurityGroupIds:
+          - !Select [0, !Ref securityGroupIds]
+        SubnetIds:
+          - !Select [0, !Ref subnetId]
+          - !Select [1, !Ref subnetId]
+
+  kubernetesServiceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref applicationName, "kubernetes-service-role" ]]
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - eks.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSServicePolicy
+        - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy

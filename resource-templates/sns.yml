@@ -24,7 +24,7 @@ Parameters:
   iamRoleArn:
     Description: arn of role that can manage the kms key
     Type: String
-    Default: 'arn:aws:iam::077375377515:role/aws-reserved/sso.amazonaws.com/AWSReservedSSO_AdministratorAccess_dbcdf3e210b95776'
+    Default: ''
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -112,8 +112,8 @@ Resources:
   snsTopic:
     Type: 'AWS::SNS::Topic'
     Properties:
-      DisplayName: !Sub ${uniqueIdentifier}-sns-${applicationName}-sns-topic
-      TopicName: !Sub ${uniqueIdentifier}-sns-${applicationName}-sns-topic
+      DisplayName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-sns-topic
+      TopicName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-sns-topic
       KmsMasterKeyId: !Ref KMSKey
       Tags:
         - Key: environment
