@@ -148,6 +148,28 @@ Resources:
       DisplayName: !Sub ${uniqueIdentifier}-${applicationName}-cloudformation-pipeline-alerts
       TopicName: !Sub ${uniqueIdentifier}-${applicationName}-cloudformation-pipeline-alerts
 
+  cloudformationRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      Path: '/'
+      Policies:
+        - PolicyName: !Sub ${uniqueIdentifier}-${applicationName}-cloudformation-Role-Policy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Action:
+                  - 'ec2:*'
+                Effect: Allow
+                Resources: *
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Satement:
+          - Action: ['sts:AssumeRole']
+            Effect: Allow
+            Principal:
+              Service: ['cloudformation.amazonaws.com']
+
+
   codePipelineServiceRole:
     Type: 'AWS::IAM::Role'
     Properties:
@@ -195,9 +217,18 @@ Resources:
               - Effect: Allow
                 Action:
                   - 'cloudwatch:*'
-                  - 's3:*'
-                  - 'sns:*'
-                  - 'cloudformation:*'
+                  - 's3:*'  # need to change this!
+                  - 'sns:Publish'
+                  - 'iam:PassRole'
+                  - 'cloudformation:CreateStack'
+                  - 'cloudformation:DescribeStacks'
+                  - 'cloudformation:DeleteStack'
+                  - 'cloudformation:UpdateStack'
+                  - 'cloudformation:CreateChangeSet'
+                  - 'cloudformation:ExecuteChangeSet'
+                  - 'cloudformation:DeleteChangeSet'
+                  - 'cloudformation:DescribeChangeSet'
+                  - 'cloudformation:SetStackPolicy'
                   - 'ec2:DescribeSecurityGroups'
                   - 'ec2:DescribeSubnets'
                   - 'ec2:CreateNetworkInterface'
