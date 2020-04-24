@@ -327,24 +327,23 @@ Resources:
                 OAuthToken: !Sub '{{resolve:ssm-secure:${githubOauthTokenSSMKey}}'
                 PollForSourceChanges: false
               RunOrder: 1
-
-        - Name: CreateStack
-          Actions:
-            - Name: !Sub ${uniqueIdentifier}-${applicationName}-Pipeline
-              ActionTypeId:
-                Category: Deploy
-                Owner: AWS
-                Provider: CloudFormation
-                Version: 1
-              Configuration:
-                ActionMode: REPLACE_ON_FAILURE
-                RoleArn: !GetAtt CFNRole.Arn # TODOL create this role
-                StackName: !Ref stackName
-              InputArtifacts:
-                - Name: SourceOutput
-              OutputArtifacts:
-                - Name: templateSource
-              RunOrder: 2
+#        - Name: CreateStack
+#          Actions:
+#            - Name: !Sub ${uniqueIdentifier}-${applicationName}-Pipeline
+#              ActionTypeId:
+#                Category: Deploy
+#                Owner: AWS
+#                Provider: CloudFormation
+#                Version: 1
+#              Configuration:
+#                ActionMode: REPLACE_ON_FAILURE
+#                RoleArn: !GetAtt codePipelineServiceRole.Arn
+#                StackName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-stack
+#              InputArtifacts:
+#                - Name: SourceOutput
+#              OutputArtifacts:
+#                - Name: templateSource
+#              RunOrder: 2
         - Name: CreateChangeSet
           Actions:
             - Name: createChangeSet
@@ -355,11 +354,12 @@ Resources:
                 Version: 1
               Configuration:
                 ActionMode: CHANGE_SET_REPLACE
-                StackName: !Sub ${stackNameToUpdate}
+                StackName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-stack
                 #              RoleArn: !Ref CodePipelineServiceRole
-                RoleArn: 'arn:aws:iam::077375377515:role/wisetail-lambda-slack-notifier-lambda-deployment-service-role'
+                RoleArn: !GetAtt codePipelineServiceRole.Arn
                 #              RoleArn: "arn:aws:iam::077375377515:role/test_pipeline_lambda"
-                TemplatePath: !Join [ "", [ "templateSource::", !Ref deploymentTemplateName ]]
+#                TemplatePath: !Join [ "", [ "templateSource::", !Ref deploymentTemplateName ]]
+                TemplatePath: !Sub templateSource::${uniqueIdentifier}-${environment}-${applicationName}-stack
                 ChangeSetName: !Join ["", [ !Ref stackNameToUpdate, "ChangeSet" ]]
                 Capabilities: CAPABILITY_NAMED_IAM
               InputArtifacts:
@@ -388,7 +388,7 @@ Resources:
                   Configuration:
                     ActionMode: CHANGE_SET_EXECUTE
                     ChangeSetName: !Join ["", [ !Ref stackNameToUpdate, "ChangeSet" ]]
-                    StackName: !Sub ${stackNameToUpdate}
+                    StackName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-stack
                   RunOrder: 6
 
   githubWebHook:
@@ -411,6 +411,6 @@ Resources:
 Outputs:
   CodePipelineServiceRole:
     Description: Role used for Pipeline
-    Value: !GetAtt codepipelineServiceRole.Arn
+    Value: !GetAtt codePipelineServiceRole.Arn
     Export:
       Name: !Sub "${uniqueIdentifier}-${applicationName}-pipeline-role-name"
