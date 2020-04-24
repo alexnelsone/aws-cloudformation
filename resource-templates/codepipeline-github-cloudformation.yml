@@ -100,7 +100,6 @@ Metadata:
         Parameters:
           - codebuildProjectName
           - codebuildProjectDescription
-          - buildspecFileName
       - Label:
           default: "Network Information"
         Parameters:
@@ -136,14 +135,18 @@ Metadata:
         default: "Key for Oauth token in Parameter Store"
       githubOauthToken:
         default: "Github oauth Token"
-      buildspecFileName:
-        default: "Buildspec filename"
       stackNameToUpdate:
         default: "The Cloudformation stack to update"
       deploymentTemplateName:
         default: "The name of the Lambda deployment template"
 
 Resources:
+
+  codepipelineSNS:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Sub ${uniqueIdentifier}-${applicationName}-cloudformation-pipeline-alerts
+      TopicName: !Sub ${uniqueIdentifier}-${applicationName}-cloudformation-pipeline-alerts
 
   codePipelineServiceRole:
     Type: 'AWS::IAM::Role'
@@ -251,21 +254,12 @@ Resources:
         Type: CODEPIPELINE
       Source:
         Type: CODEPIPELINE
-        BuildSpec: !Ref buildspecFileName
-       LogConfig:
-         S3Logs:
-           EncryptionDisabled: false
-           Location: !Ref logBucketLocation
-           Status: ENABLED
       Environment:
         Type: LINUX_CONTAINER
         ComputeType: BUILD_GENERAL1_SMALL
         Image: !Ref buildProjectImage
       Cache:
-        Location: !Join [ "", [ "dev-wisetail-pipeline-artifact-store-us-east-1/cache/", !Ref applicationName ]]
-          Modes:
-            - LOCAL_SOURCE_CACHE
-          Type: S3
+        Type: NO_CACHE
       VpcConfig:
         VpcId: !Ref vpcId
         Subnets:
