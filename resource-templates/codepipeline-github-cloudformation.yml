@@ -8,6 +8,7 @@ Parameters:
     Default: "dev"
     AllowedValues:
       - "dev"
+      - "qa"
       - "prod"
 
   uniqueIdentifier:
@@ -17,25 +18,6 @@ Parameters:
   applicationName:
     Type: String
     Description: "the name of the application that the pipeline builds. the unique identifier will be added as a prefix"
-
-  codebuildProjectName:
-    Type: String
-    Description: "the name to use for the codebuild project. the unique identifier will be added as a prefix."
-
-  codebuildProjectDescription:
-    Type: String
-    Description: "Brief desciption to use for the codebuild project."
-
-  vpcId:
-    Type: "AWS::EC2::VPC::Id"
-
-  subnets:
-    Type: List<AWS::EC2::Subnet::Id>
-
-  securityGroupIds:
-    # TODO: create and use a security group in this template
-    # Should this be a list?
-    Type: AWS::EC2::SecurityGroup::Id
 
   githubOwner:
     Type: String
@@ -50,24 +32,10 @@ Parameters:
     Type: String
     NoEcho: true
 
-  githubOauthTokenSSMKey:
+  githubOauthToken:
     Type: String
     Description: "this comes from github. if you have a service acount in github for this build, it will be the oauth token associated with that account."
     NoEcho: true
-
-  buildProjectImage:
-    Type: String
-    Default: "aws/codebuild/docker:17.09.0"
-    AllowedValues:
-      - "aws/codebuild/standard:2.0"
-      - "aws/codebuild/docker:17.09.0"
-      - "aws/codebuild/python2.7.12"
-      - "aws/codebuild/amazonlinux2-x86_64-standard:2.0"
-      - "aws/codebuild/amazonlinux2-x86_64-standard:3.0"
-
-  buildspecFileName:
-    Type: String
-    Default: "buildspec.yaml"
 
   stackNameToUpdate:
     Type: String
@@ -76,8 +44,12 @@ Parameters:
   deploymentTemplateName:
     Type: String
 
-  logBucketLocation:
+  artifactsStoreBucket:
     Type: String
+
+  stackNumber:
+    Type: String
+    Description: "if you are creating more than one stack with the same resources"
 
 
 Metadata:
@@ -94,20 +66,8 @@ Metadata:
         Parameters:
           - githubSecret
           - githubOauthToken
-          - githubOauthTokenSSMKey
       - Label:
-          default: "Codebuild Project Information"
-        Parameters:
-          - codebuildProjectName
-          - codebuildProjectDescription
-      - Label:
-          default: "Network Information"
-        Parameters:
-          - vpcId
-          - subnets
-          - securityGroupIds
-      - Label:
-          default: "Lambda Information"
+          default: "Cloudformation Information"
         Parameters:
           - stackNameToUpdate
           - deploymentTemplateName
@@ -119,20 +79,8 @@ Metadata:
         default: "Unique Identifier"
       applicationName:
         default: "Application Name"
-      codebuildProjectName:
-        default: "The name of the CodeBuild Project"
-      codebuildProjectDescription:
-        default: "Description to use for the Codebuild Project"
-      vpcId:
-        default: "Select the VPC"
-      subnets:
-        default: "Select the Subnets"
-      securityGroupIds:
-        default: "Select the security group id"
       githubSecret:
         default: "Github Secret"
-      githubOauthTokenSSMKey:
-        default: "Key for Oauth token in Parameter Store"
       githubOauthToken:
         default: "Github oauth Token"
       stackNameToUpdate:
@@ -149,31 +97,30 @@ Resources:
       TopicName: !Sub ${uniqueIdentifier}-${applicationName}-cloudformation-pipeline-alerts
 
   cloudformationRole:
-    Type: 'AWS::IAM::Role'
+    Type: AWS::IAM::Role
     Properties:
-      Path: '/'
+      Path: /
       Policies:
-        - PolicyName: !Sub ${uniqueIdentifier}-${applicationName}-cloudformation-Role-Policy
+        - PolicyName: CloudFormationRole
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
               - Action:
                   - 'ec2:*'
                 Effect: Allow
-                Resources: *
+                Resource: '*'
       AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Satement:
+        Statement:
           - Action: ['sts:AssumeRole']
             Effect: Allow
             Principal:
-              Service: ['cloudformation.amazonaws.com']
-
+              Service: [cloudformation.amazonaws.com]
+        Version: '2012-10-17'
 
   codePipelineServiceRole:
     Type: 'AWS::IAM::Role'
     Properties:
-      RoleName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref applicationName, "pipeline-service-role" ]]
+      RoleName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref environment, !Ref applicationName, "cloudformation-pipeline-service-role", !Ref stackNumber ]]
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -182,10 +129,11 @@ Resources:
               Service:
                 - codepipeline.amazonaws.com
                 - codebuild.amazonaws.com
+                - cloudformation.amazonaws.com
             Action: 'sts:AssumeRole'
       Path: /
       Policies:
-        - PolicyName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref applicationName, "pipeline-service-role-policy" ]]
+        - PolicyName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref environment, !Ref applicationName, "pipeline-service-role-policy", !Ref stackNumber ]]
           PolicyDocument:
             Version: 2012-10-17
             Statement:
@@ -257,58 +205,17 @@ Resources:
                   - 'logs:PutLogEvents'
                   - 'logs:CreateLogStream'
                   - 'logs:CreateLogGroup'
-                  - "ecr:GetAuthorizationToken"
-                  - "ecr:BatchCheckLayerAvailability"
-                  - "ecr:GetDownloadUrlForLayer"
-                  - "ecr:GetRepositoryPolicy"
-                  - "ecr:DescribeRepositories"
-                  - "ecr:ListImages"
-                  - "ecr:DescribeImages"
-                  - "ecr:BatchGetImage"
-                  - "ecr:InitiateLayerUpload"
-                  - "ecr:UploadLayerPart"
-                  - "ecr:CompleteLayerUpload"
-                  - "ecr:PutImage"
-                  - "dynamodb:PutItem"
-                  - "dynamodb:GetItem"
-                  - "dynamodb:DeleteItem"
                   - "ssm:GetParameters"
                 Resource: '*'
-
-  codebuildProject:
-    Type: "AWS::CodeBuild::Project"
-    Properties:
-      Name: !Ref codebuildProjectName
-      Description: !Ref codebuildProjectDescription
-      ServiceRole: !Ref codePipelineServiceRole
-      Artifacts:
-        Type: CODEPIPELINE
-      Source:
-        Type: CODEPIPELINE
-      Environment:
-        Type: LINUX_CONTAINER
-        ComputeType: BUILD_GENERAL1_SMALL
-        Image: !Ref buildProjectImage
-      Cache:
-        Type: NO_CACHE
-      VpcConfig:
-        VpcId: !Ref vpcId
-        Subnets:
-          - !Ref subnets
-        SecurityGroupIds:
-          - !Ref securityGroupIds
 
   applicationPipeline:
     Type: "AWS::CodePipeline::Pipeline"
     Properties:
-      Name: !Sub ${uniqueIdentifier}-${applicationName}-pipeline
+      Name: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-cloudformation-stack-pipeline
       RoleArn: !GetAtt codePipelineServiceRole.Arn
       ArtifactStore:
-        Location: !Join [ "-", [ !Ref environment, !Ref uniqueIdentifier, 'pipeline-artifact-store', !Ref "AWS::Region" ]]
+        Location: !Ref artifactsStoreBucket
         Type: S3
-        EncryptionKey:
-          Id: 47ca8eee-c3ba-4efd-8fa9-b244ef3e7da2
-          Type: KMS
       Stages:
         - Name: Source
           Actions:
@@ -324,7 +231,7 @@ Resources:
                 Owner: !Ref githubOwner
                 Repo: !Ref repositoryName
                 Branch: !Ref branchName
-                OAuthToken: !Sub '{{resolve:ssm-secure:${githubOauthTokenSSMKey}}'
+                OAuthToken: !Ref githubOauthToken
                 PollForSourceChanges: false
               RunOrder: 1
 #        - Name: CreateStack
@@ -338,7 +245,8 @@ Resources:
 #              Configuration:
 #                ActionMode: REPLACE_ON_FAILURE
 #                RoleArn: !GetAtt codePipelineServiceRole.Arn
-#                StackName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-stack
+#                StackName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-stack #todo: add deployment number
+#                TemplatePath: !Sub "SourceOutput::${deploymentTemplateName}"
 #              InputArtifacts:
 #                - Name: SourceOutput
 #              OutputArtifacts:
@@ -354,16 +262,13 @@ Resources:
                 Version: 1
               Configuration:
                 ActionMode: CHANGE_SET_REPLACE
-                StackName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-stack
-                #              RoleArn: !Ref CodePipelineServiceRole
+                StackName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-stack-${stackNumber}
                 RoleArn: !GetAtt codePipelineServiceRole.Arn
-                #              RoleArn: "arn:aws:iam::077375377515:role/test_pipeline_lambda"
-#                TemplatePath: !Join [ "", [ "templateSource::", !Ref deploymentTemplateName ]]
-                TemplatePath: !Sub templateSource::${uniqueIdentifier}-${environment}-${applicationName}-stack
+                TemplatePath: !Sub SourceOutput::${deploymentTemplateName}
                 ChangeSetName: !Join ["", [ !Ref stackNameToUpdate, "ChangeSet" ]]
                 Capabilities: CAPABILITY_NAMED_IAM
               InputArtifacts:
-                - Name: templateSource
+                - Name: SourceOutput
               RunOrder: 4
         - Name: Approval
           Actions:
@@ -375,21 +280,20 @@ Resources:
                 Version: 1
               Configuration:
                 CustomData: 'Do you want to execute a change set against the stack?'
-              #              NotificationArn: !Ref codepipelineSNS
               RunOrder: 5
-            - Name: DeployChangeSet
-              Actions:
-                - Name: ExecuteChangeSet
-                  ActionTypeId:
-                    Category: Deploy
-                    Owner: AWS
-                    Provider: CloudFormation
-                    Version: 1
-                  Configuration:
-                    ActionMode: CHANGE_SET_EXECUTE
-                    ChangeSetName: !Join ["", [ !Ref stackNameToUpdate, "ChangeSet" ]]
-                    StackName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-stack
-                  RunOrder: 6
+        - Name: DeployChangeSet
+          Actions:
+            - Name: ExecuteChangeSet
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: 1
+              Configuration:
+                ActionMode: CHANGE_SET_EXECUTE
+                ChangeSetName: !Join ["", [ !Ref stackNameToUpdate, "ChangeSet" ]]
+                StackName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-stack-${stackNumber}
+              RunOrder: 6
 
   githubWebHook:
     Type: "AWS::CodePipeline::Webhook"
@@ -402,7 +306,7 @@ Resources:
           MatchEquals: "refs/heads/${Branch}"
       TargetPipeline: !Ref applicationPipeline
       TargetAction: SourceAction
-      Name: !Join ["-", [ !Ref environment, !Ref uniqueIdentifier, !Ref applicationName, !Ref "AWS::Region"]]
+      Name: !Join ["-", [ !Ref uniqueIdentifier, !Ref environment, !Ref applicationName, !Ref "AWS::Region"]]
       TargetPipelineVersion: !GetAtt
         - applicationPipeline
         - Version
@@ -413,4 +317,4 @@ Outputs:
     Description: Role used for Pipeline
     Value: !GetAtt codePipelineServiceRole.Arn
     Export:
-      Name: !Sub "${uniqueIdentifier}-${applicationName}-pipeline-role-name"
+      Name: !Sub "${uniqueIdentifier}-${environment}-${applicationName}-pipeline-role-name-${stackNumber}"
