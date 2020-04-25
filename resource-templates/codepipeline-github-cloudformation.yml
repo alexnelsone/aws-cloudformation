@@ -93,8 +93,8 @@ Resources:
   codepipelineSNS:
     Type: AWS::SNS::Topic
     Properties:
-      DisplayName: !Sub ${uniqueIdentifier}-${applicationName}-cloudformation-pipeline-alerts
-      TopicName: !Sub ${uniqueIdentifier}-${applicationName}-cloudformation-pipeline-alerts
+      DisplayName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-cloudformation-pipeline-alerts
+      TopicName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-cloudformation-pipeline-alerts
 
   cloudformationRole:
     Type: AWS::IAM::Role
@@ -211,7 +211,7 @@ Resources:
   applicationPipeline:
     Type: "AWS::CodePipeline::Pipeline"
     Properties:
-      Name: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-cloudformation-stack-pipeline
+      Name: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-cloudformation-stack-${stackNumber}-pipeline
       RoleArn: !GetAtt codePipelineServiceRole.Arn
       ArtifactStore:
         Location: !Ref artifactsStoreBucket
