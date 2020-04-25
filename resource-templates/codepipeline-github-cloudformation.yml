@@ -84,9 +84,9 @@ Metadata:
       githubOauthToken:
         default: "Github oauth Token"
       stackNameToUpdate:
-        default: "The Cloudformation stack to update"
+        default: "The cloudformation stack to update"
       deploymentTemplateName:
-        default: "The name of the Lambda deployment template"
+        default: "The name of the cloudformation deployment template"
 
 Resources:
 
