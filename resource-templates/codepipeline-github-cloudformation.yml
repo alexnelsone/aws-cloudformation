@@ -93,15 +93,15 @@ Resources:
   codepipelineSNS:
     Type: AWS::SNS::Topic
     Properties:
-      DisplayName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-cloudformation-pipeline-alerts
-      TopicName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-cloudformation-pipeline-alerts
+      DisplayName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-stack-${stackNumber}-cloudformation-pipeline-alerts
+      TopicName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-stack-${stackNumber}-cloudformation-pipeline-alerts
 
   cloudformationRole:
     Type: AWS::IAM::Role
     Properties:
       Path: /
       Policies:
-        - PolicyName: CloudFormationRole
+        - PolicyName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-stack-${stackNumber}-cloudformation-role
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
