@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: 'EC2 Laumch Template'
+Description: 'EC2 with launch template, autoscaling group and loadbalancer'
 
 
 Parameters:
@@ -62,20 +62,50 @@ Parameters:
       - true
       - false
 
+  autoscalingMinSize:
+    Type: 'String'
+    Default: 1
+
+  autoscalingMaxSize:
+    Type: 'String'
+    Default: 1
+
+  autoscalingDesiredSize:
+    Type: 'String'
+    Default: 1
+
   emailForNotifications:
+    Type: 'String'
+
+  loadBalancerScheme:
+    Type: 'String'
+    Default: 'internet-facing'
+    AllowedValues:
+      - 'internet-facing'
+      - 'internal'
+
+  loadBalancerTargetGroupPort:
+    Type: 'String'
+    Default: 80
+
+  healthCheckPath:
+    Type: 'String'
+    Default: '/'
+
+  certificateArn:
     Type: 'String'
 
   vpcId:
     Type: 'AWS::EC2::VPC::Id'
 
   subnetId:
-    Type: 'AWS::EC2::Subnet::Id'
+    Type: List<AWS::EC2::Subnet::Id>
+
+
 
 
 
 Metadata:
-  Author:
-    Description: 'Alex Nelson <nelsone@nelsone.io>'
   AWS::Cloudformation::Interface:
     ParameterGroups:
       - Label:
@@ -92,6 +122,12 @@ Metadata:
             - 'ebsVolumeSize'
             - 'ebsVolumeType'
       - Label:
+          default: 'AutoScaling Information'
+        Parameters:
+          - 'autoscalingMinSize'
+          - 'autoscalingMaxSize'
+          - 'autoscalingDesiredSize'
+      - Label:
           default: 'Notifications'
         Parameters:
             - 'emailForNotifications'
@@ -106,8 +142,16 @@ Metadata:
         default: 'Instance Type'
       keyName:
         default: 'KeyPair'
+      autoscalingMinSize:
+        default: 'Minimum size for autoscaling group'
+      autoscalingMaxSize:
+        default: 'Maximum size for autoscaling group'
+      autoscalingDeisredSize:
+        default: 'Desired capacity for autoscaling group'
       emailForNotifications:
         default: 'Email for Notifications'
+  Author:
+    Description: 'Alex Nelson <nelsone@nelsone.io>'
 
 Mappings:
   config:
@@ -190,7 +234,7 @@ Resources:
       Roles:
         - !Ref machineRole
 
-  stackSecurityGroup:
+  ec2SecurityGroup:
     Type: 'AWS::EC2::SecurityGroup'
     Properties:
       GroupDescription: 'ssh and http via load balancer only'
@@ -241,7 +285,7 @@ Resources:
               DeleteOnTermination: true
               VolumeType: !Ref ebsVolumeType
         SecurityGroupIds:
-          - !Ref stackSecurityGroup
+          - !Ref ec2SecurityGroup
         TagSpecifications:
           - ResourceType: instance
             Tags:
@@ -282,7 +326,133 @@ Resources:
             chmod +x ./install
             ./install auto
 
+            amazon-linux-extras install -y nginx1
 
+
+  autoScalingGroup:
+    Type: 'AWS::AutoScaling::AutoScalingGroup'
+    UpdatePolicy:
+      AutoScalingReplacingUpdate:
+        WillReplace: true
+    Properties:
+      VPCZoneIdentifier: !Ref 'subnetId'
+      MinSize: !Ref 'autoscalingMinSize'
+      MaxSize: !Ref 'autoscalingMaxSize'
+      DesiredCapacity: !Ref 'autoscalingDesiredSize'
+      MixedInstancesPolicy:
+        InstancesDistribution:
+          OnDemandAllocationStrategy: prioritized
+          OnDemandBaseCapacity: 1
+          OnDemandPercentageAboveBaseCapacity: 10
+          SpotInstancePools: 2
+        LaunchTemplate:
+          LaunchTemplateSpecification:
+            LaunchTemplateId: !Ref 'ec2LaunchTemplate'
+            Version: !GetAtt 'ec2LaunchTemplate.LatestVersionNumber'
+      NotificationConfiguration:
+        TopicARN: !Ref 'notificationTopic'
+        NotificationTypes:
+          - "autoscaling:EC2_INSTANCE_LAUNCH"
+          - "autoscaling:EC2_INSTANCE_LAUNCH_ERROR"
+          - "autoscaling:EC2_INSTANCE_TERMINATE"
+          - "autoscaling:EC2_INSTANCE_TERMINATE_ERROR"
+      Tags:
+        - Key: 'Name'
+          Value: !Join ['-', [!Ref environment, !Ref uniqueIdentifier, !Ref applicationName, 'asg', !Select [ '4', !Split [ '-', !Select [ '2', !Split [ '/', !Ref 'AWS::StackId' ]]]]]]
+          PropagateAtLaunch: false
+        - Key: environment
+          Value: !FindInMap [ config, !Ref environment, environmentLongName ]
+          PropagateAtLaunch: false
+        - Key: uniqueIdentifier
+          Value: !Ref uniqueIdentifier
+          PropagateAtLaunch: false
+        - Key: application
+          Value: !Ref applicationName
+          PropagateAtLaunch: false
+
+  loadBalancerSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: 'Security group for load balancer'
+      VpcId: !Ref vpcId
+      SecurityGroupIngress:
+        - Description: 'Allow only https'
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+        - Description: 'Allow only http'
+          IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+      Tags:
+        - Key: 'Name'
+          Value: !Join ['-', [!Ref environment, !Ref uniqueIdentifier, !Ref applicationName, 'lb-sg', !Select [ '4', !Split [ '-', !Select [ '2', !Split [ '/', !Ref 'AWS::StackId' ]]]]]]
+        - Key: environment
+          Value: !FindInMap [ config, !Ref environment, environmentLongName ]
+        - Key: uniqueIdentifier
+          Value: !Ref uniqueIdentifier
+        - Key: application
+          Value: !Ref applicationName
+
+  loadBalancer:
+    Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+    Properties:
+      Type: 'application'
+      Scheme: !Ref 'loadBalancerScheme'
+      SecurityGroups:
+        - !Ref 'loadBalancerSecurityGroup'
+      Subnets: !Ref 'subnetId'
+      LoadBalancerAttributes:
+        - Key: 'idle_timeout.timeout_seconds'
+          Value: 1440
+        - Key: 'routing.http2.enabled'
+          Value: "true"
+
+  loadBalancerTargetGroup:
+    Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
+    Properties:
+      HealthCheckIntervalSeconds: "30"
+      HealthCheckTimeoutSeconds: "5"
+      HealthyThresholdCount: "3"
+      Port: !Ref 'loadBalancerTargetGroupPort'
+      Protocol: "HTTP"
+      UnhealthyThresholdCount: "5"
+      HealthCheckPath: !Ref 'healthCheckPath'
+      TargetGroupAttributes:
+        - Key: stickiness.enabled
+          Value: true
+        - Key: stickiness.lb_cookie.duration_seconds
+          Value: 300
+      VpcId: !Ref 'vpcId'
+
+  LoadBalancerHTTPListener:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - RedirectConfig:
+            Host: '#{host}'
+            Path: '/#{path}'
+            Port: 443
+            Protocol: 'HTTPS'
+            Query: '#{query}'
+            StatusCode: HTTP_301
+          Type: redirect
+      LoadBalancerArn: !Ref 'loadBalancer'
+      Port: 80
+      Protocol: 'HTTP'
+
+  LoadBalancerHTTPsListener:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      DefaultActions:
+        - Type: 'forward'
+          TargetGroupArn: !Ref loadBalancerTargetGroup
+      LoadBalancerArn: !Ref 'loadBalancer'
+      Port: 443
+      Protocol: "HTTPS"
+      SslPolicy: "ELBSecurityPolicy-FS-1-1-2019-08"
+      Certificates:
+        - CertificateArn: !Ref 'certificateArn'
 
 Outputs:
   launchTemplate:
