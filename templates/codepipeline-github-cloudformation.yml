@@ -44,6 +44,9 @@ Parameters:
   deploymentTemplateName:
     Type: String
 
+  deploymentTemplateConfiguration:
+    Type: String
+
   artifactsStoreBucket:
     Type: String
 
@@ -266,7 +269,8 @@ Resources:
                 ActionMode: CHANGE_SET_REPLACE
                 StackName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-stack-${stackNumber}
                 RoleArn: !GetAtt codePipelineServiceRole.Arn
-                TemplatePath: !Sub SourceOutput::${deploymentTemplateName}
+                TemplatePath: !Sub SourceOutput::templates/${deploymentTemplateName}
+                TemplateConfiguration: !Sub SourceOutput::configurations/${deploymentTemplateConfiguration}
                 ChangeSetName: !Join ["", [ !Ref stackNameToUpdate, "ChangeSet" ]]
                 Capabilities: CAPABILITY_NAMED_IAM
               InputArtifacts:
