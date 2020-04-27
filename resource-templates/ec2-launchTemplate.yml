@@ -240,18 +240,26 @@ Resources:
       GroupDescription: 'ssh and http via load balancer only'
       VpcId: !Ref vpcId
       SecurityGroupIngress:
-        - IpProtocol: 'tcp'
-          FromPort: '22'
-          ToPort: '22'
-          CidrIp: '10.0.0.0/8'
-        - IpProtocol: 'tcp'
-          FromPort: '80'
-          ToPort: '80'
-          CidrIp: '10.0.0.0/8'
-        - IpProtocol: 'tcp'
+#        - IpProtocol: 'tcp'
+#          FromPort: '22'
+#          ToPort: '22'
+#          CidrIp: '10.0.0.0/8'
+#        - IpProtocol: 'tcp'
+#          FromPort: '80'
+#          ToPort: '80'
+#          CidrIp: '0.0.0.0/0'
+#        - IpProtocol: 'tcp'
+#          FromPort: '443'
+#          ToPort: '443'
+#          CidrIp: '0.0.0.0/0'
+        - SourceSecurityGroupId: !Ref loadBalancerSecurityGroup
+          IpProtocol: 'tcp'
           FromPort: '443'
           ToPort: '443'
-          CidrIp: '10.0.0.0/8'
+        - SourceSecurityGroupId: !Ref loadBalancerSecurityGroup
+          IpProtocol: 'tcp'
+          FromPort: '80'
+          ToPort: '80'
       Tags:
         - Key: 'Name'
           Value: !Join ['-', [!Ref environment, !Ref uniqueIdentifier, !Ref applicationName, 'security-group', !Select [ '4', !Split [ '-', !Select [ '2', !Split [ '/', !Ref 'AWS::StackId' ]]]]]]
@@ -313,8 +321,8 @@ Resources:
             #!/bin/bash -xe
 
             EC2_AVAIL_ZONE=`curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone`
-            EC2_REGION='`echo \'$EC2_AVAIL_ZONE\' | sed 's/[a-z]$//'`'
-            EC2_INSTANCE_ID='`wget -q -O - http://169.254.169.254/latest/meta-data/instance-id`'
+            EC2_REGION="`echo \"$EC2_AVAIL_ZONE\" | sed 's/[a-z]$//'`"
+            EC2_INSTANCE_ID="`wget -q -O - http://169.254.169.254/latest/meta-data/instance-id`"
 
             yum update -y
             yum install -y ruby
@@ -326,7 +334,9 @@ Resources:
             chmod +x ./install
             ./install auto
 
-            amazon-linux-extras install -y nginx1
+            sudo amazon-linux-extras install -y nginx1
+            systemctl enable nginx
+            systemctl start nginx
 
 
   autoScalingGroup:
@@ -339,6 +349,8 @@ Resources:
       MinSize: !Ref 'autoscalingMinSize'
       MaxSize: !Ref 'autoscalingMaxSize'
       DesiredCapacity: !Ref 'autoscalingDesiredSize'
+      TargetGroupARNs:
+      - !Ref 'loadBalancerTargetGroup'
       MixedInstancesPolicy:
         InstancesDistribution:
           OnDemandAllocationStrategy: prioritized
@@ -399,6 +411,7 @@ Resources:
   loadBalancer:
     Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
     Properties:
+      Name: !Join ['-', [!Ref environment, !Ref uniqueIdentifier, !Ref applicationName, !Select [ '4', !Split [ '-', !Select [ '2', !Split [ '/', !Ref 'AWS::StackId' ]]]]]]
       Type: 'application'
       Scheme: !Ref 'loadBalancerScheme'
       SecurityGroups:
@@ -422,6 +435,7 @@ Resources:
   loadBalancerTargetGroup:
     Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
     Properties:
+      Name: !Join ['-', [!Ref environment, !Ref uniqueIdentifier, !Ref applicationName, !Select [ '4', !Split [ '-', !Select [ '2', !Split [ '/', !Ref 'AWS::StackId' ]]]]]]
       HealthCheckIntervalSeconds: "30"
       HealthCheckTimeoutSeconds: "5"
       HealthyThresholdCount: "3"
@@ -435,6 +449,16 @@ Resources:
         - Key: stickiness.lb_cookie.duration_seconds
           Value: 300
       VpcId: !Ref 'vpcId'
+      TargetType: instance
+      Tags:
+        - Key: 'Name'
+          Value: !Join ['-', [!Ref environment, !Ref uniqueIdentifier, !Ref applicationName, 'target-group', !Select [ '4', !Split [ '-', !Select [ '2', !Split [ '/', !Ref 'AWS::StackId' ]]]]]]
+        - Key: environment
+          Value: !FindInMap [ config, !Ref environment, environmentLongName ]
+        - Key: uniqueIdentifier
+          Value: !Ref uniqueIdentifier
+        - Key: application
+          Value: !Ref applicationName
 
   LoadBalancerHTTPListener:
     Type: 'AWS::ElasticLoadBalancingV2::Listener'
