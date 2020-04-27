@@ -53,6 +53,8 @@ Parameters:
 
 
 Metadata:
+  Author:
+    Description: "Alex Nelson <nelsone@nelsone.io>"
   AWS::Cloudformation::Interface:
     ParameterGroups:
       - Label:

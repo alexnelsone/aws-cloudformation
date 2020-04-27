@@ -1,0 +1,206 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "EC2 Laumch Template"
+
+
+Parameters:
+  environment:
+    Description: Development Envrionment Name
+    Type: String
+    Default: "dev"
+    AllowedValues:
+      - "dev"
+      - "qa"
+      - "prod"
+
+  uniqueIdentifier:
+    Type: String
+    Description: "a unique organization identifier. This will be the prefix for the created resources."
+
+  applicationName:
+    Type: String
+    Description: "the name of the application that the pipeline builds. the unique identifier will be added as a prefix"
+
+  keyName:
+    Description: "Name of existing ec2 keypair"
+    Type: AWS::EC2::KeyPair::KeyName
+
+  instanceType:
+    Type: String
+    Default: t2.micro
+    AllowedValues:
+      - t2.micro
+      - m5n.large
+      - m5n.xlarge
+      - m5n.2xlarge
+      - m5n.4xlarge
+      - m5n.8xlarge
+      - m5n.16xlarge
+      - m5n.24xlarge
+      - m5dn.xlarge
+      - m5dn.2xlarge
+      - m5dn.4xlarge
+      - m5dn.8xlarge
+      - m5dn.16xlarge
+      - m5dn.24xlarge
+
+  imageId:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Default: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+
+  ebsVolumeSize:
+    Type: 'String'
+    Default: 10
+
+  emailForNotifications:
+    Type: 'String'
+
+  vpcId:
+    Type: "AWS::EC2::VPC::Id"
+
+  subnetId:
+    Type: "AWS::EC2::Subnet::Id"
+
+
+
+Metadata:
+  Author:
+    Description: "Alex Nelson <nelsone@nelsone.io>"
+  AWS::Cloudformation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "General Information"
+        Parameters:
+          - "environment"
+          - "uniqueIdentifier"
+          - "applicationName"
+      - Label:
+          default: "EC2 Information"
+        Parameters:
+            - "instanceType"
+            - "keyName"
+      - Label:
+          default: "Notifications"
+        Parameters:
+            - "emailForNotifications"
+    ParameterLabels:
+      environment:
+        default: "Development environment for this template"
+      uniqueIdentifier:
+        default: "Unique Identifier"
+      applicationName:
+        default: "Application Name"
+      instanceType:
+        default: "Instance Type"
+      keyName:
+        default: "KeyPair"
+      emailForNotifications:
+        default: "Email for Notifications"
+
+Resources:
+  notificationTopic:
+    Type: 'AWS::SNS::Topic'
+    Properties:
+      DisplayName: !Join ["-", [!Ref environment, !Ref uniqueIdentifier, "notifier", !Select [ "4", !Split [ "-", !Select [ "2", !Split [ "/", !Ref "AWS::StackId" ]]]]]]
+      Subscription:
+        - Endpoint: !Ref "emailForNotifications"
+          Protocol: "email"
+
+  machineRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Join ["-", [!Ref environment, !Ref uniqueIdentifier, !Ref applicationName, !Select [ "4", !Split [ "-", !Select [ "2", !Split [ "/", !Ref "AWS::StackId" ]]]]]]
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: "ec2.amazonaws.com"}
+            Action: ["sts:AssumeRole"]
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM'
+        - 'arn:aws:iam::aws:policy/AmazonEC2ReadOnlyAccess'
+        - 'arn:aws:iam::aws:policy/AWSCodeCommitReadOnly'
+        - 'arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore'
+        - 'arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy'
+      Path: /
+      Policies:
+        - PolicyName: !Sub '${uniqueIdentifier}-machine-policy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ['s3:GetBucketLocation','s3:ListAllMyBuckets']
+                Resource: 'arn:aws:s3:::*'
+              - Effect: Allow
+                Action: ['s3:GetObject', 's3:GetObjectTagging', 's3:GetObjectVersion']
+                Resource:
+                  - 'arn:aws:s3:::dev-*'
+                  - 'arn:aws:s3:::dev-*/*'
+              - Effect: Allow
+                Action: ['ec2:CreateImage','ec2:CreateTags']
+                Resource: '*'
+              - Effect: Allow
+                Action: ['autoscaling:CreateLaunchConfiguration','autoscaling:UpdateAutoScalingGroup','autoscaling:CreateOrUpdateTags']
+                Resource: '*'
+              - Effect: Allow
+                Action: ['cloudformation:DescribeStackResources']
+                Resource: '*'
+
+  iamInstanceProfile:
+    Type: "AWS::IAM::InstanceProfile"
+    Properties:
+      InstanceProfileName: !Join ["-", [!Ref uniqueIdentifier, !Ref environment, "InstanceProfile", !Select [ "4", !Split [ "-", !Select [ "2", !Split [ "/", !Ref "AWS::StackId" ]]]]]]
+      Roles:
+        - !Ref machineRole
+
+  stackSecurityGroup:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: "ssh and http via load balancer only"
+      VpcId: !Ref vpcId
+      SecurityGroupIngress:
+        - IpProtocol: "tcp"
+          FromPort: "22"
+          ToPort: "22"
+          CidrIp: "10.0.0.0/8"
+        - IpProtocol: "tcp"
+          FromPort: "80"
+          ToPort: "80"
+#          SourceSecurityGroupId: !Ref 'securityGroupIds'
+        - IpProtocol: "tcp"
+          FromPort: "443"
+          ToPort: "443"
+#          SourceSecurityGroupId: !Ref 'securityGroupIds'
+
+
+  ec2LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub '${uniqueIdentifier}-${environment}-launchTemplate'
+      LaunchTemplateData:
+        InstanceType: c4.large
+        DisableApiTermination: 'true'
+        KeyName: !Ref keyName
+        ImageId: !Ref imageId
+        IamInstanceProfile:
+          Arn: !GetAtt iamInstanceProfile.Arn
+        BlockDeviceMappings:
+          - DeviceName: '/dev/xvda'
+            Ebs:
+              Encrypted: true
+              VolumeSize: !Ref ebsVolumeSize
+        NetworkInterfaces:
+          - DeviceIndex: 0
+            SubnetId: !Ref subnetId
+        SecurityGroupIds:
+          - !Ref stackSecurityGroup
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+            - Key: Name
+              Value: !Join ["-", [!Ref uniqueIdentifier, !Ref environment, "InstanceProfile", !Select [ "4", !Split [ "-", !Select [ "2", !Split [ "/", !Ref "AWS::StackId" ]]]]]]
+
+
+Outputs:
+  launchTemplate:
+    Value:
+      Ref: ec2LaunchTemplate
