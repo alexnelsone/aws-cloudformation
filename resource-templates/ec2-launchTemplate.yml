@@ -109,6 +109,13 @@ Metadata:
       emailForNotifications:
         default: 'Email for Notifications'
 
+Mappings:
+  config:
+    dev:
+      environmentLongName: "development"
+    prod:
+      environmentLongName: "production"
+
 Resources:
   notificationTopic:
     Type: 'AWS::SNS::Topic'
@@ -117,6 +124,15 @@ Resources:
       Subscription:
         - Endpoint: !Ref 'emailForNotifications'
           Protocol: 'email'
+      Tags:
+        - Key: 'Name'
+          Value: !Join ['-', [!Ref environment, !Ref uniqueIdentifier, !Ref applicationName, 'sns-topic', !Select [ '4', !Split [ '-', !Select [ '2', !Split [ '/', !Ref 'AWS::StackId' ]]]]]]
+        - Key: environment
+          Value: !FindInMap [ config, !Ref environment, environmentLongName ]
+        - Key: uniqueIdentifier
+          Value: !Ref uniqueIdentifier
+        - Key: application
+          Value: !Ref applicationName
 
   machineRole:
     Type: 'AWS::IAM::Role'
@@ -161,7 +177,7 @@ Resources:
         - Key: 'Name'
           Value: !Join ['-', [!Ref environment, !Ref uniqueIdentifier, !Ref applicationName, 'role', !Select [ '4', !Split [ '-', !Select [ '2', !Split [ '/', !Ref 'AWS::StackId' ]]]]]]
         - Key: environment
-          Value: !Ref environment
+          Value: !FindInMap [ config, !Ref environment, environmentLongName ]
         - Key: uniqueIdentifier
           Value: !Ref uniqueIdentifier
         - Key: application
@@ -196,7 +212,7 @@ Resources:
         - Key: 'Name'
           Value: !Join ['-', [!Ref environment, !Ref uniqueIdentifier, !Ref applicationName, 'security-group', !Select [ '4', !Split [ '-', !Select [ '2', !Split [ '/', !Ref 'AWS::StackId' ]]]]]]
         - Key: environment
-          Value: !Ref environment
+          Value: !FindInMap [ config, !Ref environment, environmentLongName ]
         - Key: uniqueIdentifier
           Value: !Ref uniqueIdentifier
         - Key: application
@@ -232,7 +248,7 @@ Resources:
             - Key: Name
               Value: !Join ['-', [!Ref uniqueIdentifier, !Ref environment, !Ref applicationName, 'instance', !Select [ '4', !Split [ '-', !Select [ '2', !Split [ '/', !Ref 'AWS::StackId' ]]]]]]
             - Key: environment
-              Value: !Ref environment
+              Value: !FindInMap [ config, !Ref environment, environmentLongName ]
             - Key: uniqueIdentifier
               Value: !Ref uniqueIdentifier
             - Key: application
@@ -242,7 +258,7 @@ Resources:
             - Key: Name
               Value: !Join ['-', [!Ref uniqueIdentifier, !Ref environment, !Ref applicationName, 'volume', !Select [ '4', !Split [ '-', !Select [ '2', !Split [ '/', !Ref 'AWS::StackId' ]]]]]]
             - Key: environment
-              Value: !Ref environment
+              Value: !FindInMap [ config, !Ref environment, environmentLongName ]
             - Key: uniqueIdentifier
               Value: !Ref uniqueIdentifier
             - Key: application
