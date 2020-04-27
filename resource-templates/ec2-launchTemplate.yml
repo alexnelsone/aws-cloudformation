@@ -119,7 +119,7 @@ Resources:
           Protocol: 'email'
 
   machineRole:
-    Type: AWS::IAM::Role
+    Type: 'AWS::IAM::Role'
     Properties:
       RoleName: !Join ['-', [!Ref environment, !Ref uniqueIdentifier, !Ref applicationName, !Select [ '4', !Split [ '-', !Select [ '2', !Split [ '/', !Ref 'AWS::StackId' ]]]]]]
       AssumeRolePolicyDocument:
@@ -157,6 +157,15 @@ Resources:
               - Effect: Allow
                 Action: ['cloudformation:DescribeStackResources']
                 Resource: '*'
+      Tags:
+        - Key: 'Name'
+          Value: !Join ['-', [!Ref environment, !Ref uniqueIdentifier, !Ref applicationName, 'role', !Select [ '4', !Split [ '-', !Select [ '2', !Split [ '/', !Ref 'AWS::StackId' ]]]]]]
+        - Key: environment
+          Value: !Ref environment
+        - Key: uniqueIdentifier
+          Value: !Ref uniqueIdentifier
+        - Key: application
+          Value: !Ref applicationName
 
   iamInstanceProfile:
     Type: 'AWS::IAM::InstanceProfile'
@@ -183,6 +192,15 @@ Resources:
           FromPort: '443'
           ToPort: '443'
           CidrIp: '10.0.0.0/8'
+      Tags:
+        - Key: 'Name'
+          Value: !Join ['-', [!Ref environment, !Ref uniqueIdentifier, !Ref applicationName, 'security-group', !Select [ '4', !Split [ '-', !Select [ '2', !Split [ '/', !Ref 'AWS::StackId' ]]]]]]
+        - Key: environment
+          Value: !Ref environment
+        - Key: uniqueIdentifier
+          Value: !Ref uniqueIdentifier
+        - Key: application
+          Value: !Ref applicationName
 
 
   ec2LaunchTemplate:
@@ -213,18 +231,30 @@ Resources:
             Tags:
             - Key: Name
               Value: !Join ['-', [!Ref uniqueIdentifier, !Ref environment, !Ref applicationName, 'instance', !Select [ '4', !Split [ '-', !Select [ '2', !Split [ '/', !Ref 'AWS::StackId' ]]]]]]
+            - Key: environment
+              Value: !Ref environment
+            - Key: uniqueIdentifier
+              Value: !Ref uniqueIdentifier
+            - Key: application
+              Value: !Ref applicationName
           - ResourceType: volume
             Tags:
             - Key: Name
               Value: !Join ['-', [!Ref uniqueIdentifier, !Ref environment, !Ref applicationName, 'volume', !Select [ '4', !Split [ '-', !Select [ '2', !Split [ '/', !Ref 'AWS::StackId' ]]]]]]
+            - Key: environment
+              Value: !Ref environment
+            - Key: uniqueIdentifier
+              Value: !Ref uniqueIdentifier
+            - Key: application
+              Value: !Ref applicationName
         UserData:
           Fn::Base64: !Sub |
 
             #!/bin/bash -xe
 
             EC2_AVAIL_ZONE=`curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone`
-            EC2_REGION="`echo \"$EC2_AVAIL_ZONE\" | sed 's/[a-z]$//'`"
-            EC2_INSTANCE_ID="`wget -q -O - http://169.254.169.254/latest/meta-data/instance-id`"
+            EC2_REGION='`echo \'$EC2_AVAIL_ZONE\' | sed 's/[a-z]$//'`'
+            EC2_INSTANCE_ID='`wget -q -O - http://169.254.169.254/latest/meta-data/instance-id`'
 
             yum update -y
             yum install -y ruby
