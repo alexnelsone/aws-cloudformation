@@ -266,7 +266,7 @@ Resources:
   ec2LaunchTemplate:
     Type: 'AWS::EC2::LaunchTemplate'
     Properties:
-      LaunchTemplateName: !Sub '${uniqueIdentifier}-${environment}-launchTemplate'
+      LaunchTemplateName: !Sub '${uniqueIdentifier}-${environment}-${applicationName}-launchTemplate'
       LaunchTemplateData:
         InstanceType: !Ref instanceType
         DisableApiTermination: !Ref terminationProtection
@@ -380,10 +380,12 @@ Resources:
           IpProtocol: tcp
           FromPort: 443
           ToPort: 443
+          CidrIp: 0.0.0.0/0
         - Description: 'Allow only http'
           IpProtocol: tcp
           FromPort: 80
           ToPort: 80
+          CidrIp: 0.0.0.0/0
       Tags:
         - Key: 'Name'
           Value: !Join ['-', [!Ref environment, !Ref uniqueIdentifier, !Ref applicationName, 'lb-sg', !Select [ '4', !Split [ '-', !Select [ '2', !Split [ '/', !Ref 'AWS::StackId' ]]]]]]
@@ -407,6 +409,15 @@ Resources:
           Value: 1440
         - Key: 'routing.http2.enabled'
           Value: "true"
+      Tags:
+        - Key: 'Name'
+          Value: !Join ['-', [!Ref environment, !Ref uniqueIdentifier, !Ref applicationName, 'load-balancer', !Select [ '4', !Split [ '-', !Select [ '2', !Split [ '/', !Ref 'AWS::StackId' ]]]]]]
+        - Key: environment
+          Value: !FindInMap [ config, !Ref environment, environmentLongName ]
+        - Key: uniqueIdentifier
+          Value: !Ref uniqueIdentifier
+        - Key: application
+          Value: !Ref applicationName
 
   loadBalancerTargetGroup:
     Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
