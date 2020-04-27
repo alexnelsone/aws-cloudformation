@@ -1,0 +1,22 @@
+{
+  "Parameters" : {
+    "environment" : "",
+    "uniqueIdentifier" : "",
+    "applicationName" : "",
+    "keyName" : "",
+    "ebsVolumeSize" : "10",
+    "ebsVolumeType" : "gp2",
+    "terminationProtection" : "false",
+    "detailedMonitoring" : "false",
+    "autoscalingMinSize" : "1",
+    "autoscalingMaxSize" : "1",
+    "autoscalingDesiredSize" : "1",
+    "emailForNotifications" : "nelsone@nelsone.io",
+    "loadBalancerScheme" : "internet-facing",
+    "loadBalancerTargetGroupPort" : "80",
+    "healthCheckPath" : "/",
+    "certificateArn" : "",
+    "vpcId" : "",
+    "subnetId" : "x,y"
+  }
+}
