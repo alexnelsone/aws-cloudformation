@@ -157,6 +157,8 @@ Mappings:
   config:
     dev:
       environmentLongName: "development"
+    qa:
+      environmentLongName: "qa"
     prod:
       environmentLongName: "production"
 
