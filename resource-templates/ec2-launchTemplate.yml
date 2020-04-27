@@ -1,27 +1,27 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: "EC2 Laumch Template"
+Description: 'EC2 Laumch Template'
 
 
 Parameters:
   environment:
     Description: Development Envrionment Name
     Type: String
-    Default: "dev"
+    Default: 'dev'
     AllowedValues:
-      - "dev"
-      - "qa"
-      - "prod"
+      - 'dev'
+      - 'qa'
+      - 'prod'
 
   uniqueIdentifier:
     Type: String
-    Description: "a unique organization identifier. This will be the prefix for the created resources."
+    Description: 'a unique organization identifier. This will be the prefix for the created resources.'
 
   applicationName:
     Type: String
-    Description: "the name of the application that the pipeline builds. the unique identifier will be added as a prefix"
+    Description: 'the name of the application that the pipeline builds. the unique identifier will be added as a prefix'
 
   keyName:
-    Description: "Name of existing ec2 keypair"
+    Description: 'Name of existing ec2 keypair'
     Type: AWS::EC2::KeyPair::KeyName
 
   instanceType:
@@ -29,19 +29,6 @@ Parameters:
     Default: t2.micro
     AllowedValues:
       - t2.micro
-      - m5n.large
-      - m5n.xlarge
-      - m5n.2xlarge
-      - m5n.4xlarge
-      - m5n.8xlarge
-      - m5n.16xlarge
-      - m5n.24xlarge
-      - m5dn.xlarge
-      - m5dn.2xlarge
-      - m5dn.4xlarge
-      - m5dn.8xlarge
-      - m5dn.16xlarge
-      - m5dn.24xlarge
 
   imageId:
     Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
@@ -51,70 +38,96 @@ Parameters:
     Type: 'String'
     Default: 10
 
+  ebsVolumeType:
+    Type: 'String'
+    Default: 'gp2'
+    AllowedValues:
+      - gp2
+      - io1
+      - sc1
+      - st1
+      - standard
+
+  terminationProtection:
+    Type: 'String'
+    Default: false
+    AllowedValues:
+      - true
+      - false
+
+  detailedMonitoring:
+    Type: 'String'
+    Default: false
+    AllowedValues:
+      - true
+      - false
+
   emailForNotifications:
     Type: 'String'
 
   vpcId:
-    Type: "AWS::EC2::VPC::Id"
+    Type: 'AWS::EC2::VPC::Id'
 
   subnetId:
-    Type: "AWS::EC2::Subnet::Id"
+    Type: 'AWS::EC2::Subnet::Id'
 
 
 
 Metadata:
   Author:
-    Description: "Alex Nelson <nelsone@nelsone.io>"
+    Description: 'Alex Nelson <nelsone@nelsone.io>'
   AWS::Cloudformation::Interface:
     ParameterGroups:
       - Label:
-          default: "General Information"
+          default: 'General Information'
         Parameters:
-          - "environment"
-          - "uniqueIdentifier"
-          - "applicationName"
+          - 'environment'
+          - 'uniqueIdentifier'
+          - 'applicationName'
       - Label:
-          default: "EC2 Information"
+          default: 'EC2 Information'
         Parameters:
-            - "instanceType"
-            - "keyName"
+            - 'instanceType'
+            - 'keyName'
+            - 'ebsVolumeSize'
+            - 'ebsVolumeType'
       - Label:
-          default: "Notifications"
+          default: 'Notifications'
         Parameters:
-            - "emailForNotifications"
+            - 'emailForNotifications'
     ParameterLabels:
       environment:
-        default: "Development environment for this template"
+        default: 'Development environment for this template'
       uniqueIdentifier:
-        default: "Unique Identifier"
+        default: 'Unique Identifier'
       applicationName:
-        default: "Application Name"
+        default: 'Application Name'
       instanceType:
-        default: "Instance Type"
+        default: 'Instance Type'
       keyName:
-        default: "KeyPair"
+        default: 'KeyPair'
       emailForNotifications:
-        default: "Email for Notifications"
+        default: 'Email for Notifications'
 
 Resources:
   notificationTopic:
     Type: 'AWS::SNS::Topic'
     Properties:
-      DisplayName: !Join ["-", [!Ref environment, !Ref uniqueIdentifier, "notifier", !Select [ "4", !Split [ "-", !Select [ "2", !Split [ "/", !Ref "AWS::StackId" ]]]]]]
+      DisplayName: !Join ['-', [!Ref environment, !Ref uniqueIdentifier, 'notifier', !Select [ '4', !Split [ '-', !Select [ '2', !Split [ '/', !Ref 'AWS::StackId' ]]]]]]
       Subscription:
-        - Endpoint: !Ref "emailForNotifications"
-          Protocol: "email"
+        - Endpoint: !Ref 'emailForNotifications'
+          Protocol: 'email'
 
   machineRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Join ["-", [!Ref environment, !Ref uniqueIdentifier, !Ref applicationName, !Select [ "4", !Split [ "-", !Select [ "2", !Split [ "/", !Ref "AWS::StackId" ]]]]]]
+      RoleName: !Join ['-', [!Ref environment, !Ref uniqueIdentifier, !Ref applicationName, !Select [ '4', !Split [ '-', !Select [ '2', !Split [ '/', !Ref 'AWS::StackId' ]]]]]]
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
           - Effect: Allow
-            Principal: {Service: "ec2.amazonaws.com"}
-            Action: ["sts:AssumeRole"]
+            Principal: {Service: 'ec2.amazonaws.com'}
+            Action: ['sts:AssumeRole']
       ManagedPolicyArns:
         - 'arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM'
         - 'arn:aws:iam::aws:policy/AmazonEC2ReadOnlyAccess'
@@ -146,58 +159,83 @@ Resources:
                 Resource: '*'
 
   iamInstanceProfile:
-    Type: "AWS::IAM::InstanceProfile"
+    Type: 'AWS::IAM::InstanceProfile'
     Properties:
-      InstanceProfileName: !Join ["-", [!Ref uniqueIdentifier, !Ref environment, "InstanceProfile", !Select [ "4", !Split [ "-", !Select [ "2", !Split [ "/", !Ref "AWS::StackId" ]]]]]]
+      InstanceProfileName: !Join ['-', [!Ref uniqueIdentifier, !Ref environment, 'InstanceProfile', !Select [ '4', !Split [ '-', !Select [ '2', !Split [ '/', !Ref 'AWS::StackId' ]]]]]]
       Roles:
         - !Ref machineRole
 
   stackSecurityGroup:
-    Type: "AWS::EC2::SecurityGroup"
+    Type: 'AWS::EC2::SecurityGroup'
     Properties:
-      GroupDescription: "ssh and http via load balancer only"
+      GroupDescription: 'ssh and http via load balancer only'
       VpcId: !Ref vpcId
       SecurityGroupIngress:
-        - IpProtocol: "tcp"
-          FromPort: "22"
-          ToPort: "22"
-          CidrIp: "10.0.0.0/8"
-        - IpProtocol: "tcp"
-          FromPort: "80"
-          ToPort: "80"
-#          SourceSecurityGroupId: !Ref 'securityGroupIds'
-        - IpProtocol: "tcp"
-          FromPort: "443"
-          ToPort: "443"
-#          SourceSecurityGroupId: !Ref 'securityGroupIds'
+        - IpProtocol: 'tcp'
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: '10.0.0.0/8'
+        - IpProtocol: 'tcp'
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: '10.0.0.0/8'
+        - IpProtocol: 'tcp'
+          FromPort: '443'
+          ToPort: '443'
+          CidrIp: '10.0.0.0/8'
 
 
   ec2LaunchTemplate:
-    Type: AWS::EC2::LaunchTemplate
+    Type: 'AWS::EC2::LaunchTemplate'
     Properties:
       LaunchTemplateName: !Sub '${uniqueIdentifier}-${environment}-launchTemplate'
       LaunchTemplateData:
-        InstanceType: c4.large
-        DisableApiTermination: 'true'
+        InstanceType: !Ref instanceType
+        DisableApiTermination: !Ref terminationProtection
+        InstanceInitiatedShutdownBehavior: terminate
         KeyName: !Ref keyName
         ImageId: !Ref imageId
         IamInstanceProfile:
           Arn: !GetAtt iamInstanceProfile.Arn
+        Monitoring:
+          Enabled: !Ref detailedMonitoring
         BlockDeviceMappings:
           - DeviceName: '/dev/xvda'
             Ebs:
               Encrypted: true
               VolumeSize: !Ref ebsVolumeSize
-        NetworkInterfaces:
-          - DeviceIndex: 0
-            SubnetId: !Ref subnetId
+              DeleteOnTermination: true
+              VolumeType: !Ref ebsVolumeType
         SecurityGroupIds:
           - !Ref stackSecurityGroup
         TagSpecifications:
           - ResourceType: instance
             Tags:
             - Key: Name
-              Value: !Join ["-", [!Ref uniqueIdentifier, !Ref environment, "InstanceProfile", !Select [ "4", !Split [ "-", !Select [ "2", !Split [ "/", !Ref "AWS::StackId" ]]]]]]
+              Value: !Join ['-', [!Ref uniqueIdentifier, !Ref environment, !Ref applicationName, 'instance', !Select [ '4', !Split [ '-', !Select [ '2', !Split [ '/', !Ref 'AWS::StackId' ]]]]]]
+          - ResourceType: volume
+            Tags:
+            - Key: Name
+              Value: !Join ['-', [!Ref uniqueIdentifier, !Ref environment, !Ref applicationName, 'volume', !Select [ '4', !Split [ '-', !Select [ '2', !Split [ '/', !Ref 'AWS::StackId' ]]]]]]
+        UserData:
+          Fn::Base64: !Sub |
+
+            #!/bin/bash -xe
+
+            EC2_AVAIL_ZONE=`curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone`
+            EC2_REGION="`echo \"$EC2_AVAIL_ZONE\" | sed 's/[a-z]$//'`"
+            EC2_INSTANCE_ID="`wget -q -O - http://169.254.169.254/latest/meta-data/instance-id`"
+
+            yum update -y
+            yum install -y ruby
+            yum install -y wget
+
+            cd /home/ec2-user
+            wget https://aws-codedeploy-$EC2_REGION.s3.$EC2_REGION.amazonaws.com/latest/install
+
+            chmod +x ./install
+            ./install auto
+
 
 
 Outputs:
