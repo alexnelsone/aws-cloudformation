@@ -231,6 +231,7 @@ Resources:
                   - 'elasticloadbalancing:DeleteTargetGroup'
                   - 'elasticloadbalancing:AddTags'
                   - 'elasticloadbalancingv2:DescribeLoadBalancers'
+                  - 'elasticloadbalancing:DescribeLoadBalancers'
                   - 'sns:CreateTopic'
                   - 'sns:DeleteTopic'
                   - 'sns:GetTopicAttributes'
