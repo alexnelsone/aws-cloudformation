@@ -246,6 +246,10 @@ Resources:
                   - 'elasticloadbalancing:CreateLoadBalancer'
                   - 'elasticloadbalancing:DeleteLoadBalancer'
                   - 'elasticloadbalancingv2:DeleteLoadBalancer'
+                  - 'elasticloadbalancing:CreateListener'
+                  - 'elasticloadbalancing:ModifyLoadBalancerAttributes'
+                  - 'elasticloadbalancing:DescribeListeners'
+                  - 'elasticloadbalancing:DeleteListener'
                   - 'sns:CreateTopic'
                   - 'sns:DeleteTopic'
                   - 'sns:GetTopicAttributes'
@@ -275,7 +279,6 @@ Resources:
                   - 'autoscaling:UpdateAutoScalingGroup'
                   - 'autoscaling:DescribeScalingActivities'
                   - 'autoscaling:PutNotificationConfiguration'
-                  - 'elasticloadbalancing:ModifyLoadBalancerAttributes'
                 Resource: '*'
 
   applicationPipeline:
