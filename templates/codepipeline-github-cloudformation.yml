@@ -276,6 +276,8 @@ Resources:
                   - 'autoscaling:DescribeScalingActivities'
                   - 'autoscaling:PutNotificationConfiguration'
                   - 'elasticloadbalancing:ModifyLoadBalancerAttributes'
+                  - 'elasticloadbalancing:CreateListener'
+                  - 'elasticloadbalancing:DeleteListener'
                 Resource: '*'
 
   applicationPipeline:
