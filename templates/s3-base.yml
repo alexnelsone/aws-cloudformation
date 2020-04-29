@@ -19,7 +19,6 @@ Parameters:
     Type: String
     Description: "a unique organization identifier. This will be the prefix for the created resources."
 
-
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -41,7 +40,11 @@ Resources:
   s3Bucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Join [ "-", [!Ref environment, !Ref uniqueIdentifier, !Ref bucketIdentifier, !Ref 'AWS::Region' ]]
+      BucketName: !Join [ "-", [!Ref uniqueIdentifier, !Ref environment, !Ref bucketIdentifier, !Ref 'AWS::Region' ]]
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
       Tags:
         - {Key: uniqueIdentifier, Value: !Ref uniqueIdentifier}
       LifecycleConfiguration:
