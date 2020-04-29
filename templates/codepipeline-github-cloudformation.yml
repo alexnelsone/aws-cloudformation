@@ -56,8 +56,6 @@ Parameters:
 
 
 Metadata:
-  Author:
-    Description: "Alex Nelson <nelsone@nelsone.io>"
   AWS::Cloudformation::Interface:
     ParameterGroups:
       - Label:
@@ -92,6 +90,8 @@ Metadata:
         default: "The cloudformation stack to update"
       deploymentTemplateName:
         default: "The name of the cloudformation deployment template"
+  Author:
+    Description: "Alex Nelson <nelsone@nelsone.io>"
 
 Resources:
 
