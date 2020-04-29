@@ -1,0 +1,7 @@
+{
+  "Parameters" : {
+    "environment" : "dev",
+    "uniqueIdentifier" : "nelsone",
+    "bucketIdentifier" : "artifacts-store"
+  }
+}
