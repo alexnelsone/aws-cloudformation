@@ -17,6 +17,7 @@
     "healthCheckPath" : "/",
     "certificateArn" : "",
     "vpcId" : "",
-    "subnetId" : "x,y"
+    "subnetId" : "x,y",
+    "publicSubnetId" : "x,y"
   }
 }
