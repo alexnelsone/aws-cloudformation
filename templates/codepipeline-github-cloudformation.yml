@@ -288,9 +288,9 @@ Resources:
     Properties:
       Name: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-cfn-stack-${stackNumber}-pipeline
       RoleArn: !GetAtt codePipelineServiceRole.Arn
-#      ArtifactStore:
-#        Location: !Ref artifactsStoreBucket
-#        Type: S3
+      ArtifactStore:
+        Location: !Ref artifactsStoreBucket
+        Type: S3
       Stages:
         - Name: Source
           Actions:
