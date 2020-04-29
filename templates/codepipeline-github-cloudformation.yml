@@ -98,15 +98,15 @@ Resources:
   codepipelineSNS:
     Type: AWS::SNS::Topic
     Properties:
-      DisplayName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-stack-${stackNumber}-cloudformation-pipeline-alerts
-      TopicName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-stack-${stackNumber}-cloudformation-pipeline-alerts
+      DisplayName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-stack-${stackNumber}-cfn-pipeline-alerts
+      TopicName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-stack-${stackNumber}-cfn-pipeline-alerts
 
   cloudformationRole:
     Type: AWS::IAM::Role
     Properties:
       Path: /
       Policies:
-        - PolicyName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-stack-${stackNumber}-cloudformation-role
+        - PolicyName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-stack-cfn-role-${stackNumber}
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -125,7 +125,7 @@ Resources:
   codePipelineServiceRole:
     Type: 'AWS::IAM::Role'
     Properties:
-      RoleName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref environment, !Ref applicationName, "cloudformation-pipeline-service-role", !Ref stackNumber ]]
+      RoleName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref environment, !Ref applicationName, "cfn-pipeline-service-role", !Ref stackNumber ]]
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -286,11 +286,11 @@ Resources:
   applicationPipeline:
     Type: "AWS::CodePipeline::Pipeline"
     Properties:
-      Name: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-cloudformation-stack-${stackNumber}-pipeline
+      Name: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-cfn-stack-${stackNumber}-pipeline
       RoleArn: !GetAtt codePipelineServiceRole.Arn
-      ArtifactStore:
-        Location: !Ref artifactsStoreBucket
-        Type: S3
+#      ArtifactStore:
+#        Location: !Ref artifactsStoreBucket
+#        Type: S3
       Stages:
         - Name: Source
           Actions:
