@@ -1,0 +1,63 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: s3 Bucket resource template
+
+Parameters:
+  environment:
+    Description: Development Envrionment Name
+    Type: String
+    Default: "dev"
+    AllowedValues:
+      - "dev"
+      - "qa"
+      - "prod"
+
+  uniqueIdentifier:
+    Type: String
+    Description: "a unique organization identifier. This will be the prefix for the created resources."
+
+  bucketIdentifier:
+    Type: String
+    Description: "a unique organization identifier. This will be the prefix for the created resources."
+
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "S3 Bucket Identifer"
+        Parameters:
+          - environment
+          - uniqueIdentifier
+          - bucketIdentifier
+    ParameterLabels:
+      environment:
+        default: 'Environment where this resource is being used'
+      uniqueIdentifier:
+        default: 'Unique identifier for this resource'
+      bucketIdentifier:
+        default: 'Identifier for this resource. Will be appended to uniqueIdentifier to form resource name.'
+
+Resources:
+  s3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Join [ "-", [!Ref environment, !Ref uniqueIdentifier, !Ref bucketIdentifier, !Ref 'AWS::Region' ]]
+      Tags:
+        - {Key: uniqueIdentifier, Value: !Ref uniqueIdentifier}
+      LifecycleConfiguration:
+        Rules:
+          - Id: "Transition to Standard-IA after 90 days"
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+            NoncurrentVersionExpirationInDays: 182
+            Transitions:
+              - StorageClass: STANDARD_IA
+                TransitionInDays: 90
+              - StorageClass: GLACIER
+                TransitionInDays: 181
+            NoncurrentVersionTransitions:
+              - StorageClass: STANDARD_IA
+                TransitionInDays: 90
+              - StorageClass: GLACIER
+                TransitionInDays: 181
