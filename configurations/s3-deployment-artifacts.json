@@ -2,6 +2,6 @@
   "Parameters" : {
     "environment" : "dev",
     "uniqueIdentifier" : "nelsone",
-    "bucketIdentifier" : "deployment-artifacts",
+    "bucketIdentifier" : "deployment-artifacts"
   }
 }
