@@ -68,7 +68,7 @@ Resources:
   ContainerRepository:
     Type: "AWS::ECR::Repository"
     Properties:
-      RepositoryName: !Join [ "-", [ !Ref environment, !Ref uniqueIdentifier, !Ref applicationName, "container-repository" ]]
+      RepositoryName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref environment , !Ref applicationName, "container-repository" ]]
       #      the reason the role is the only one with the access is so that we test just an automated process putting
       #      containers into repository
       RepositoryPolicyText:
