@@ -1,0 +1,19 @@
+{
+  "Parameters" : {
+    "environment" : "dev",
+    "uniqueIdentifier" : "nelsone",
+    "applicationName" : "docker",
+    "vpcId" : "",
+    "subnets" : "",
+    "securityGroupIds" : "",
+    "GitHubOwner" : "",
+    "RepositoryName" : "",
+    "BranchName" : "",
+    "GitHubSecret" : "",
+    "GitHubOAuthToken" : "",
+    "buildProjectImage": "",
+    "buildSpecFileName" : "",
+    "codebuildProjectLogBucket" : "",
+    "codebuildProjectCacheBucket": ""
+  }
+}

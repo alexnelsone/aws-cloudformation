@@ -22,15 +22,6 @@ Parameters:
     Type: String
     Description: "the name of the application that the pipeline builds. The unique identifier will be added as a prefix."
 
-
-  codeBuildProjectName:
-    Type: String
-    Description: "the name to use for the codebuild project. The unique identifier will be added as a prefix."
-
-  codeBuildProjectDescription:
-    Type: String
-    Description: "breif description to use for the codebuild project."
-
   vpcId:
     Type: AWS::EC2::VPC::Id
 
@@ -99,8 +90,6 @@ Metadata:
       - Label:
           default: "CodeBuild Project Information"
         Parameters:
-          - codeBuildProjectName
-          - codeBuildProjectDescription
           - buildSpecFileName
       - Label:
           default: "Network Information"
@@ -118,10 +107,6 @@ Metadata:
         default: "Unique Identifier"
       applicationName:
         default: "Application Name"
-      codeBuildProjectName:
-        default: "The name of the CodeBuild project"
-      codeBuildProjectDescription:
-        default: "Description for the CodeBuild project"
       vpcId:
         default: "Select VPC"
       subnets:
@@ -304,7 +289,7 @@ Resources:
                 Provider: CodeBuild
                 Version: 1
               Configuration:
-                ProjectName: !Ref codeBuildProjectName
+                ProjectName: !Ref CodeBuildProject
               InputArtifacts:
                 - Name: SourceOutput
               OutputArtifacts:
