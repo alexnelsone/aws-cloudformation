@@ -1,8 +1,13 @@
 AWSTemplateFormatVersion: 2010-09-09 
 Description: Template to Generate Log Streams and Log Groups
 
-Parameters:
 
+Metadata:
+  Author:
+    Description: "Alex Nelson <nelsone@nelsone.io>"
+
+
+Parameters:
   uniqueIdentifier:
     Type: String
     Default: none_defined
@@ -13,8 +18,6 @@ Parameters:
   logStreamName:
     Type: String
 
-
-
 Resources:
 
   LogGroup:
@@ -22,8 +25,7 @@ Resources:
     Properties:
       LogGroupName: !Sub ${uniqueIdentifier}-${logGroupName}
       RetentionInDays: 365
-      
-      
+
   LogStream:
     Type: AWS::Logs::LogStream
     Properties:

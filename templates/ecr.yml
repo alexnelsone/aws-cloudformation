@@ -1,0 +1,120 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "Elastic Container Repository"
+
+
+Parameters:
+
+  environment:
+    Description: Development Envrionment Name
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - stage
+      - qa
+      - prod
+
+  uniqueIdentifier:
+    Type: String
+    Default: nelsone
+
+  applicationName:
+    Type: String
+    Default: na
+
+  roleARN:
+    Type: String
+    Description: "this must exist prior to creating this stack"
+
+  daysToKeepUntaggedImages:
+    Type: String
+    Default: 7
+
+  numTaggedImagesToKeep:
+    Type: String
+    Default: 10
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "General Information"
+        Parameters:
+          - environment
+          - uniqueIdentifier
+          - applicationName
+          - roleARN
+      - Label:
+          default: "ECR Policy Rule"
+        Parameters:
+          - daysToKeepUntaggedImages
+          - numTaggedImagesToKeep
+    ParameterLabels:
+      environment:
+        default: "Development environment for this template"
+      uniqueIdentifier:
+        default: "Unique Identifier"
+      applicationName:
+        default: "Application Name"
+      roleARN:
+        default: "arn for pipeline role"
+      daysToKeepUntaggedImages:
+        default: "Number of days to keep untagged images"
+      numTaggedImagesToKeep:
+        default: "Number of tagged images to keep"
+
+
+Resources:
+  ContainerRepository:
+    Type: "AWS::ECR::Repository"
+    Properties:
+      RepositoryName: !Join [ "-", [ !Ref environment, !Ref uniqueIdentifier, !Ref applicationName, "container-repository" ]]
+      #      the reason the role is the only one with the access is so that we test just an automated process putting
+      #      containers into repository
+      RepositoryPolicyText:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - !Ref roleARN
+            Action:
+              - "ecr:GetDownloadUrlForLayer"
+              - "ecr:BatchGetImage"
+              - "ecr:BatchCheckLayerAvailability"
+              - "ecr:PutImage"
+              - "ecr:InitiateLayerUpload"
+              - "ecr:UploadLayerPart"
+              - "ecr:CompleteLayerUpload"
+      LifecyclePolicy:
+        LifecyclePolicyText: !Sub
+          - |
+            {
+              "rules": [
+                {
+                  "rulePriority": 1,
+                  "description": "Only keep untagged images for 7 days",
+                  "selection": {
+                    "tagStatus": "untagged",
+                    "countType": "sinceImagePushed",
+                    "countUnit": "days",
+                    "countNumber": 7
+                  },
+                  "action": { "type": "expire" }
+                },
+                {
+                  "rulePriority": 2,
+                  "description": "Keep only 10 tagged images, expire all others",
+                  "selection": {
+                    "tagStatus": "tagged",
+                    "tagPrefixList": [ "dev" ],
+                    "countType": "imageCountMoreThan",
+                    "countNumber": 10
+                  },
+                  "action": { "type": "expire" }
+                }
+              ]
+            }
+          - environment: !Ref environment

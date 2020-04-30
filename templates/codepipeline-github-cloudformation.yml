@@ -12,52 +12,53 @@ Parameters:
       - "prod"
 
   uniqueIdentifier:
-    Type: String
+    Type: 'String'
     Description: "a unique organization identifier. This will be the prefix for the created resources."
 
   applicationName:
-    Type: String
+    Type: 'String'
     Description: "the name of the application that the pipeline builds. the unique identifier will be added as a prefix"
 
   githubOwner:
-    Type: String
+    Type: 'String'
 
   repositoryName:
-    Type: String
+    Type: 'String'
 
   branchName:
-    Type: String
+    Type: 'String'
 
   githubSecret:
-    Type: String
+    Type: 'String'
     NoEcho: true
 
   githubOauthToken:
-    Type: String
+    Type: 'String'
     Description: "this comes from github. if you have a service acount in github for this build, it will be the oauth token associated with that account."
     NoEcho: true
 
   stackNameToUpdate:
-    Type: String
+    Type: 'String'
     Description: "the name of the lambda cloudformation stack"
 
   deploymentTemplateName:
-    Type: String
+    Type: 'String'
 
   deploymentTemplateConfiguration:
-    Type: String
+    Type: 'String'
 
   artifactsStoreBucket:
-    Type: String
+    Type: 'String'
 
   stackNumber:
-    Type: String
+    Type: 'String'
     Description: "if you are creating more than one stack with the same resources"
+
+  awsResourceType:
+    Type: 'String'
 
 
 Metadata:
-  Author:
-    Description: "Alex Nelson <nelsone@nelsone.io>"
   AWS::Cloudformation::Interface:
     ParameterGroups:
       - Label:
@@ -92,21 +93,23 @@ Metadata:
         default: "The cloudformation stack to update"
       deploymentTemplateName:
         default: "The name of the cloudformation deployment template"
+  Author:
+    Description: "Alex Nelson <nelsone@nelsone.io>"
 
 Resources:
 
   codepipelineSNS:
     Type: AWS::SNS::Topic
     Properties:
-      DisplayName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-stack-${stackNumber}-cloudformation-pipeline-alerts
-      TopicName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-stack-${stackNumber}-cloudformation-pipeline-alerts
+      DisplayName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-stack-${stackNumber}-cfn-pipeline-alerts
+      TopicName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-stack-${stackNumber}-cfn-pipeline-alerts
 
   cloudformationRole:
     Type: AWS::IAM::Role
     Properties:
       Path: /
       Policies:
-        - PolicyName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-stack-${stackNumber}-cloudformation-role
+        - PolicyName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-stack-cfn-role-${stackNumber}
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -125,7 +128,7 @@ Resources:
   codePipelineServiceRole:
     Type: 'AWS::IAM::Role'
     Properties:
-      RoleName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref environment, !Ref applicationName, "cloudformation-pipeline-service-role", !Ref stackNumber ]]
+      RoleName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref environment, !Ref applicationName, "cfn-pipeline-service-role", !Ref stackNumber ]]
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -232,6 +235,7 @@ Resources:
                   - 'ec2:DescribeLaunchTemplates'
                   - 'ec2:GetLaunchTemplateData'
                   - 'ec2:ModifyLaunchTemplate'
+                  - 'ec2:CreateLaunchTemplateVersion'
                   - 'logs:PutLogEvents'
                   - 'logs:CreateLogStream'
                   - 'logs:CreateLogGroup'
@@ -246,6 +250,11 @@ Resources:
                   - 'elasticloadbalancing:CreateLoadBalancer'
                   - 'elasticloadbalancing:DeleteLoadBalancer'
                   - 'elasticloadbalancingv2:DeleteLoadBalancer'
+                  - 'elasticloadbalancing:CreateListener'
+                  - 'elasticloadbalancing:ModifyLoadBalancerAttributes'
+                  - 'elasticloadbalancing:DescribeListeners'
+                  - 'elasticloadbalancing:DeleteListener'
+                  - 'elasticloadbalancing:SetSubnets'
                   - 'sns:CreateTopic'
                   - 'sns:DeleteTopic'
                   - 'sns:GetTopicAttributes'
@@ -275,15 +284,12 @@ Resources:
                   - 'autoscaling:UpdateAutoScalingGroup'
                   - 'autoscaling:DescribeScalingActivities'
                   - 'autoscaling:PutNotificationConfiguration'
-                  - 'elasticloadbalancing:ModifyLoadBalancerAttributes'
-                  - 'elasticloadbalancing:CreateListener'
-                  - 'elasticloadbalancing:DeleteListener'
                 Resource: '*'
 
   applicationPipeline:
     Type: "AWS::CodePipeline::Pipeline"
     Properties:
-      Name: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-cloudformation-stack-${stackNumber}-pipeline
+      Name: !Sub ${uniqueIdentifier}-${environment}-${awsResourceType}-${applicationName}-cfn-stack-${stackNumber}-pipeline
       RoleArn: !GetAtt codePipelineServiceRole.Arn
       ArtifactStore:
         Location: !Ref artifactsStoreBucket
@@ -334,7 +340,7 @@ Resources:
                 Version: 1
               Configuration:
                 ActionMode: CHANGE_SET_REPLACE
-                StackName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-stack-${stackNumber}
+                StackName: !Sub ${uniqueIdentifier}-${environment}-${awsResourceType}-${applicationName}-stack-${stackNumber}
                 RoleArn: !GetAtt codePipelineServiceRole.Arn
                 TemplatePath: !Sub SourceOutput::templates/${deploymentTemplateName}
                 TemplateConfiguration: !Sub SourceOutput::configurations/${deploymentTemplateConfiguration}
@@ -365,7 +371,7 @@ Resources:
               Configuration:
                 ActionMode: CHANGE_SET_EXECUTE
                 ChangeSetName: !Join ["", [ !Ref stackNameToUpdate, "ChangeSet" ]]
-                StackName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-stack-${stackNumber}
+                StackName: !Sub ${uniqueIdentifier}-${environment}-${awsResourceType}-${applicationName}-stack-${stackNumber}
               RunOrder: 6
 
   githubWebHook:
@@ -379,7 +385,7 @@ Resources:
           MatchEquals: "refs/heads/${Branch}"
       TargetPipeline: !Ref applicationPipeline
       TargetAction: SourceAction
-      Name: !Join ["-", [ !Ref uniqueIdentifier, !Ref environment, !Ref applicationName, !Ref "AWS::Region"]]
+      Name: !Join ["-", [ !Ref uniqueIdentifier, !Ref environment, !Ref awsResourceType, !Ref applicationName, !Ref "AWS::Region"]]
       TargetPipelineVersion: !GetAtt
         - applicationPipeline
         - Version

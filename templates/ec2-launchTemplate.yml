@@ -15,6 +15,7 @@ Parameters:
   uniqueIdentifier:
     Type: String
     Description: 'a unique organization identifier. This will be the prefix for the created resources.'
+    Default: "nelsone"
 
   applicationName:
     Type: String
@@ -99,6 +100,9 @@ Parameters:
     Type: 'AWS::EC2::VPC::Id'
 
   subnetId:
+    Type: List<AWS::EC2::Subnet::Id>
+
+  publicSubnetId:
     Type: List<AWS::EC2::Subnet::Id>
 
 
@@ -330,11 +334,15 @@ Resources:
             yum install -y ruby
             yum install -y wget
 
-            cd /home/ec2-user
+            cd /tmp
             wget https://aws-codedeploy-$EC2_REGION.s3.$EC2_REGION.amazonaws.com/latest/install
 
             chmod +x ./install
             ./install auto
+
+            yum install -y https://s3.amazonaws.com/ec2-downloads-windows/SSMAgent/latest/linux_amd64/amazon-ssm-agent.rpm
+            sudo systemctl enable amazon-ssm-agent
+            sudo systemctl start amazon-ssm-agent
 
             sudo amazon-linux-extras install -y nginx1
             systemctl enable nginx
@@ -418,7 +426,7 @@ Resources:
       Scheme: !Ref 'loadBalancerScheme'
       SecurityGroups:
         - !Ref 'loadBalancerSecurityGroup'
-      Subnets: !Ref 'subnetId'
+      Subnets: !Ref 'publicSubnetId'
       LoadBalancerAttributes:
         - Key: 'idle_timeout.timeout_seconds'
           Value: 1440
