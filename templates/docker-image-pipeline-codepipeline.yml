@@ -1,0 +1,320 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Builds docker images from a codecommit repository"
+
+Parameters:
+
+  environment:
+    Description: Development Envrionment Name
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - stage
+      - qa
+      - prod
+
+  uniqueIdentifier:
+    Type: String
+    Description: "a unique organization identifier. This will be the prefix for the created resources."
+    Default: "nelsone"
+
+  applicationName:
+    Type: String
+    Description: "the name of the application that the pipeline builds. The unique identifier will be added as a prefix."
+
+
+  codeBuildProjectName:
+    Type: String
+    Description: "the name to use for the codebuild project. The unique identifier will be added as a prefix."
+
+  codeBuildProjectDescription:
+    Type: String
+    Description: "breif description to use for the codebuild project."
+
+  vpcId:
+    Type: AWS::EC2::VPC::Id
+
+  subnets:
+    Type: AWS::EC2::Subnet::Id
+
+  securityGroupIds:
+    Type: AWS::EC2::SecurityGroup::Id
+
+  GitHubOwner:
+    Type: String
+    Default: "nelsone"
+
+  RepositoryName:
+    Type: String
+
+  BranchName:
+    Type: String
+
+  GitHubSecret:
+    Type: String
+    NoEcho: true
+
+  GitHubOAuthToken:
+    Type: String
+    Description: "This comes from github. If you have a service account in github for this build, it will be the oauth token associated with that account."
+    NoEcho: true
+
+  buildProjectImage:
+    Type: String
+    Default: "aws/codebuild/docker:17.09.0"
+    AllowedValues:
+      - "aws/codebuild/standard:2.0"
+      - "aws/codebuild/docker:17.09.0"
+      - "aws/codebuild/python:2.7.12"
+
+
+  buildSpecFileName:
+    Type: String
+    Default: "buildspec-docker-simple.yaml"
+    Description: "the name of the buildspec file for the build project to execute."
+
+  codebuildProjectLogBucket:
+    Type: 'String'
+
+  codebuildProjectCacheBucket:
+    Type: 'String'
+
+
+
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "General Information"
+        Parameters:
+          - environment
+          - uniqueIdentifier
+          - applicationName
+      - Label:
+          default: "Github information"
+        Parameters:
+          - GitHubSecret
+          - GitHubOAuthToken
+      - Label:
+          default: "CodeBuild Project Information"
+        Parameters:
+          - codeBuildProjectName
+          - codeBuildProjectDescription
+          - buildSpecFileName
+      - Label:
+          default: "Network Information"
+        Parameters:
+          - vpcId
+          - subnets
+          - securityGroupIds
+  Author:
+    Description: 'Alex Nelson <nelsone@nelsone.io>'
+
+    ParameterLabels:
+      environment:
+        default: "Development environment for this template"
+      uniqueIdentifier:
+        default: "Unique Identifier"
+      applicationName:
+        default: "Application Name"
+      codeBuildProjectName:
+        default: "The name of the CodeBuild project"
+      codeBuildProjectDescription:
+        default: "Description for the CodeBuild project"
+      vpcId:
+        default: "Select VPC"
+      subnets:
+        default: "Subnets"
+      securityGroupIds:
+        default: "Security Groups"
+      GitHubSecret:
+        default: "github secret"
+      GitHubOAuthToken:
+        default: "github oauth token"
+      buildSpecFileName:
+        default: "buildspec filename"
+
+
+
+Resources:
+  CodeBuildProject:
+    Type: "AWS::CodeBuild::Project"
+    Properties:
+      Name: !Join ['-', [!Ref uniqueIdentifier, !Ref applicationName, "codebuild", !Select [ '4', !Split [ '-', !Select [ '2', !Split [ '/', !Ref 'AWS::StackId' ]]]]]]
+      Description: !Ref codeBuildProjectDescription
+      ServiceRole: !Ref CodePipelineServiceRole
+
+      Artifacts:
+        Type: CODEPIPELINE
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: !Ref buildSpecFileName
+      LogsConfig:
+        S3Logs:
+          EncryptionDisabled: false
+          Location: !Sub ${codebuildProjectLogBucket}/build_output
+          Status: ENABLED
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: !Ref buildProjectImage
+      Cache:
+        Location: !Join [ "", [ !Ref codebuildProjectCacheBucket, "/cache/", !Ref applicationName ]]
+        Modes:
+          - LOCAL_SOURCE_CACHE
+        Type: S3
+
+      VpcConfig:
+        VpcId: !Ref vpcId
+        Subnets:
+          - !Ref subnets
+        SecurityGroupIds:
+          - !Ref securityGroupIds
+
+  CodePipelineServiceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref applicationName, "pipeline-service-role" ]]
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+                - codebuild.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref applicationName, "pipeline-service-role-policy" ]]
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'codecommit:CancelUploadArchive'
+                  - 'codecommit:GetBranch'
+                  - 'codecommit:GetCommit'
+                  - 'codecommit:GetUploadArchiveStatus'
+                  - 'codecommit:UploadArchive'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'codedeploy:CreateDeployment'
+                  - 'codedeploy:GetApplicationRevision'
+                  - 'codedeploy:GetDeployment'
+                  - 'codedeploy:GetDeploymentConfig'
+                  - 'codedeploy:RegisterApplicationRevision'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'codebuild:BatchGetBuilds'
+                  - 'codebuild:StartBuild'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'iam:PassRole'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'cloudwatch:*'
+                  - 's3:*'
+                  - 'sns:*'
+                  - 'cloudformation:*'
+                  - 'ec2:DescribeSecurityGroups'
+                  - 'ec2:DescribeSubnets'
+                  - 'ec2:CreateNetworkInterface'
+                  - 'ec2:DescribeNetworkInterfaces'
+                  - 'ec2:DeleteNetworkInterface'
+                  - 'ec2:DescribeDhcpOptions'
+                  - 'ec2:DescribeVpcs'
+                  - 'ec2:DescribeInstances'
+                  - 'ec2:DescribeInstanceAttribute'
+                  - 'ec2:DescribeInstanceAttributes'
+                  - 'ec2:DescribeSecurityGroups'
+                  - 'ec2:DescribeIamInstanceProfileAssociations'
+                  - 'ec2:DescribeSubnets'
+                  - 'ec2:DescribeNetworkInterfaces'
+                  - 'ec2:DescribeImages'
+                  - 'ec2:DeleteNetworkInterface'
+                  - 'ec2:CreateNetworkInterfacePermission'
+                  - 'ec2:StartInstances'
+                  - 'ec2:RunInstances'
+                  - 'ec2:StopInstances'
+                  - 'ec2:RebootInstances'
+                  - 'ec2:TerminateInstances'
+                  - 'ec2:CreateTags'
+                  - 'ec2:DeleteTags'
+                  - 'ec2:*'
+                  - 'logs:PutLogEvents'
+                  - 'logs:CreateLogStream'
+                  - 'logs:CreateLogGroup'
+                  - "ecr:GetAuthorizationToken"
+                  - "ecr:BatchCheckLayerAvailability"
+                  - "ecr:GetDownloadUrlForLayer"
+                  - "ecr:GetRepositoryPolicy"
+                  - "ecr:DescribeRepositories"
+                  - "ecr:ListImages"
+                  - "ecr:DescribeImages"
+                  - "ecr:BatchGetImage"
+                  - "ecr:InitiateLayerUpload"
+                  - "ecr:UploadLayerPart"
+                  - "ecr:CompleteLayerUpload"
+                  - "ecr:PutImage"
+                  - "dynamodb:PutItem"
+                  - "dynamodb:GetItem"
+                  - "dynamodb:DeleteItem"
+                  - "ssm:GetParameters"
+                Resource: '*'
+
+
+  ApplicationPipeline:
+    Type: "AWS::CodePipeline::Pipeline"
+    Properties:
+      Name: !Sub ${uniqueIdentifier}-${applicationName}-pipeline
+      RoleArn: !GetAtt CodePipelineServiceRole.Arn
+      ArtifactStore:
+        Location: !Join [ "-", [ !Ref environment, !Ref uniqueIdentifier, 'pipeline-artifact-store', !Ref "AWS::Region" ]]
+        Type: S3
+        EncryptionKey:
+          Id: 47ca8eee-c3ba-4efd-8fa9-b244ef3e7da2
+          Type: KMS
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: SourceAction
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Version: 1
+                Provider: CodeCommit
+              OutputArtifacts:
+                - Name: SourceOutput
+              Configuration:
+                RepositoryName: !Ref RepositoryName
+                BranchName: !Ref BranchName
+              RunOrder: 1
+        - Name: Build
+          Actions:
+            - Name: !Sub ${uniqueIdentifier}-${applicationName}-Pipeline
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: 1
+              Configuration:
+                ProjectName: !Ref codeBuildProjectName
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: templateSource
+              RunOrder: 3
+
+
+Outputs:
+  CodePipelineServiceRole:
+    Description: Role used for Pipeline
+    Value: !GetAtt CodePipelineServiceRole.Arn
+    Export:
+      Name: !Sub "${uniqueIdentifier}-${applicationName}-pipeline-role-name"

@@ -15,6 +15,7 @@ Parameters:
   uniqueIdentifier:
     Type: String
     Description: 'a unique organization identifier. This will be the prefix for the created resources.'
+    Default: "nelsone"
 
   applicationName:
     Type: String
