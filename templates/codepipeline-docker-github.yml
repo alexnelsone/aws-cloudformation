@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "Builds docker images from a codecommit repository"
+Description: "Builds docker images from a github repository"
 
 Parameters:
 
@@ -31,21 +31,21 @@ Parameters:
   securityGroupIds:
     Type: AWS::EC2::SecurityGroup::Id
 
-  GitHubOwner:
+  gitHubOwner:
     Type: String
-    Default: "nelsone"
+    Default: "alexnelsone"
 
-  RepositoryName:
-    Type: String
-
-  BranchName:
+  repositoryName:
     Type: String
 
-  GitHubSecret:
+  branchName:
+    Type: String
+
+  gitHubSecret:
     Type: String
     NoEcho: true
 
-  GitHubOAuthToken:
+  gitHubOAuthToken:
     Type: String
     Description: "This comes from github. If you have a service account in github for this build, it will be the oauth token associated with that account."
     NoEcho: true
@@ -70,8 +70,9 @@ Parameters:
   codebuildProjectCacheBucket:
     Type: 'String'
 
-
-
+  stackNumber:
+    Type: 'String'
+    Description: "if you are creating more than one stack with the same resources"
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -85,8 +86,8 @@ Metadata:
       - Label:
           default: "Github information"
         Parameters:
-          - GitHubSecret
-          - GitHubOAuthToken
+          - gitHubSecret
+          - gitHubOAuthToken
       - Label:
           default: "CodeBuild Project Information"
         Parameters:
@@ -97,9 +98,6 @@ Metadata:
           - vpcId
           - subnets
           - securityGroupIds
-  Author:
-    Description: 'Alex Nelson <nelsone@nelsone.io>'
-
     ParameterLabels:
       environment:
         default: "Development environment for this template"
@@ -119,45 +117,17 @@ Metadata:
         default: "github oauth token"
       buildSpecFileName:
         default: "buildspec filename"
-
-
+  Author:
+    Description: 'Alex Nelson <nelsone@nelsone.io>'
 
 Resources:
-  CodeBuildProject:
-    Type: "AWS::CodeBuild::Project"
+  codepipelineSNS:
+    Type: AWS::SNS::Topic
     Properties:
-      Name: !Join ['-', [!Ref uniqueIdentifier, !Ref applicationName, "codebuild", !Select [ '4', !Split [ '-', !Select [ '2', !Split [ '/', !Ref 'AWS::StackId' ]]]]]]
-      Description: !Ref codeBuildProjectDescription
-      ServiceRole: !Ref CodePipelineServiceRole
+      DisplayName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-stack-${stackNumber}-container-pipeline-alerts
+      TopicName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-stack-${stackNumber}-container-pipeline-alerts
 
-      Artifacts:
-        Type: CODEPIPELINE
-      Source:
-        Type: CODEPIPELINE
-        BuildSpec: !Ref buildSpecFileName
-      LogsConfig:
-        S3Logs:
-          EncryptionDisabled: false
-          Location: !Sub ${codebuildProjectLogBucket}/build_output
-          Status: ENABLED
-      Environment:
-        Type: LINUX_CONTAINER
-        ComputeType: BUILD_GENERAL1_SMALL
-        Image: !Ref buildProjectImage
-      Cache:
-        Location: !Join [ "", [ !Ref codebuildProjectCacheBucket, "/cache/", !Ref applicationName ]]
-        Modes:
-          - LOCAL_SOURCE_CACHE
-        Type: S3
-
-      VpcConfig:
-        VpcId: !Ref vpcId
-        Subnets:
-          - !Ref subnets
-        SecurityGroupIds:
-          - !Ref securityGroupIds
-
-  CodePipelineServiceRole:
+  codePipelineServiceRole:
     Type: 'AWS::IAM::Role'
     Properties:
       RoleName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref applicationName, "pipeline-service-role" ]]
@@ -253,32 +223,76 @@ Resources:
                   - "ssm:GetParameters"
                 Resource: '*'
 
+  codeBuildProject:
+    Type: "AWS::CodeBuild::Project"
+    Properties:
+      Name: !Join ['-', [!Ref uniqueIdentifier, !Ref applicationName, "codebuild", !Select [ '4', !Split [ '-', !Select [ '2', !Split [ '/', !Ref 'AWS::StackId' ]]]]]]
+      Description: !Sub 'codebuild project for ${applicationName} docker images.'
+      ServiceRole: !Ref codePipelineServiceRole
+      TimeoutInMinutes: 5
+      QueuedTimeoutInMinutes: 5
+      Artifacts:
+        Type: CODEPIPELINE
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: !Ref buildSpecFileName
+      LogsConfig:
+        S3Logs:
+          EncryptionDisabled: false
+          Location: !Sub ${codebuildProjectLogBucket}/build_output
+          Status: ENABLED
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: !Ref buildProjectImage
+        PrivilegedMode: true
+      Cache:
+        Location: !Join [ "", [ !Ref codebuildProjectCacheBucket, "/cache/", !Ref applicationName ]]
+        Modes:
+          - LOCAL_SOURCE_CACHE
+        Type: S3
+      VpcConfig:
+        VpcId: !Ref vpcId
+        Subnets:
+          - !Ref subnets
+        SecurityGroupIds:
+          - !Ref securityGroupIds
+      Tags:
+        - Key: uniqueIdentifier
+          Value: !Ref uniqueIdentifier
+        - Key: application
+          Value: !Ref applicationName
 
-  ApplicationPipeline:
+
+  applicationPipeline:
     Type: "AWS::CodePipeline::Pipeline"
     Properties:
       Name: !Sub ${uniqueIdentifier}-${applicationName}-pipeline
-      RoleArn: !GetAtt CodePipelineServiceRole.Arn
+      RoleArn: !GetAtt codePipelineServiceRole.Arn
       ArtifactStore:
-        Location: !Join [ "-", [ !Ref environment, !Ref uniqueIdentifier, 'pipeline-artifact-store', !Ref "AWS::Region" ]]
+        Location: !Ref codebuildProjectCacheBucket
         Type: S3
-        EncryptionKey:
-          Id: 47ca8eee-c3ba-4efd-8fa9-b244ef3e7da2
-          Type: KMS
+#        EncryptionKey:
+#          Id: TODO
+#          Type: KMS
       Stages:
         - Name: Source
           Actions:
             - Name: SourceAction
+              Namespace: SourceVariables
               ActionTypeId:
                 Category: Source
-                Owner: AWS
+                Owner: ThirdParty
                 Version: 1
-                Provider: CodeCommit
+                Provider: GitHub
               OutputArtifacts:
                 - Name: SourceOutput
               Configuration:
-                RepositoryName: !Ref RepositoryName
-                BranchName: !Ref BranchName
+                Owner: !Ref gitHubOwner
+                Repo: !Ref repositoryName
+                Branch: !Ref branchName
+                OAuthToken: !Ref gitHubOAuthToken
+                PollForSourceChanges: false
               RunOrder: 1
         - Name: Build
           Actions:
@@ -289,7 +303,7 @@ Resources:
                 Provider: CodeBuild
                 Version: 1
               Configuration:
-                ProjectName: !Ref CodeBuildProject
+                ProjectName: !Join ['-', [!Ref uniqueIdentifier, !Ref applicationName, "codebuild", !Select [ '4', !Split [ '-', !Select [ '2', !Split [ '/', !Ref 'AWS::StackId' ]]]]]]
               InputArtifacts:
                 - Name: SourceOutput
               OutputArtifacts:
@@ -297,9 +311,82 @@ Resources:
               RunOrder: 3
 
 
+  containerRepository:
+    Type: "AWS::ECR::Repository"
+    Properties:
+      RepositoryName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref environment , !Ref applicationName, "container-repository" ]]
+      #      the reason the role is the only one with the access is so that we test just an automated process putting
+      #      containers into repository
+      RepositoryPolicyText:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Sid: AllowPushPull
+            Effect: Allow
+            Principal:
+              AWS:
+                - !GetAtt codePipelineServiceRole.Arn
+            Action:
+              - "ecr:GetDownloadUrlForLayer"
+              - "ecr:BatchGetImage"
+              - "ecr:BatchCheckLayerAvailability"
+              - "ecr:PutImage"
+              - "ecr:InitiateLayerUpload"
+              - "ecr:UploadLayerPart"
+              - "ecr:CompleteLayerUpload"
+      LifecyclePolicy:
+        LifecyclePolicyText: !Sub
+          - |
+            {
+              "rules": [
+                {
+                  "rulePriority": 1,
+                  "description": "Only keep untagged images for 7 days",
+                  "selection": {
+                    "tagStatus": "untagged",
+                    "countType": "sinceImagePushed",
+                    "countUnit": "days",
+                    "countNumber": 7
+                  },
+                  "action": { "type": "expire" }
+                },
+                {
+                  "rulePriority": 2,
+                  "description": "Keep only 10 tagged images, expire all others",
+                  "selection": {
+                    "tagStatus": "tagged",
+                    "tagPrefixList": [ "dev" ],
+                    "countType": "imageCountMoreThan",
+                    "countNumber": 10
+                  },
+                  "action": { "type": "expire" }
+                }
+              ]
+            }
+          - environment: !Ref environment
+
+
+  githubWebHook:
+    Type: "AWS::CodePipeline::Webhook"
+    Properties:
+      Authentication: GITHUB_HMAC
+      AuthenticationConfiguration:
+        SecretToken: !Ref gitHubSecret
+      Filters:
+        - JsonPath: $.ref
+          MatchEquals: "refs/heads/${Branch}"
+      TargetPipeline: !Ref applicationPipeline
+      TargetAction: SourceAction
+      Name: !Join ["-", [ !Ref uniqueIdentifier, !Ref environment, !Ref applicationName, !Ref "AWS::Region"]]
+      TargetPipelineVersion: !GetAtt
+        - applicationPipeline
+        - Version
+      RegisterWithThirdParty: true
+
+
 Outputs:
-  CodePipelineServiceRole:
+  codePipelineServiceRole:
     Description: Role used for Pipeline
-    Value: !GetAtt CodePipelineServiceRole.Arn
+    Value: !GetAtt codePipelineServiceRole.Arn
     Export:
-      Name: !Sub "${uniqueIdentifier}-${applicationName}-pipeline-role-name"
+      Name: !Sub "${uniqueIdentifier}-${applicationName}-docker-pipeline-role"
