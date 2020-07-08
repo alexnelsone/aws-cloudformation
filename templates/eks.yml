@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: "Creates Kubernetes Cluster"
+Description: "Creates eks Cluster"
 
 Parameters:
   environment:
@@ -31,6 +31,10 @@ Parameters:
   securityGroupIds:
     Type: List<AWS::EC2::SecurityGroup::Id>
 
+  nodeGroupInstanceType:
+    Type: String
+    Default: t3.medium
+
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -56,12 +60,18 @@ Metadata:
 
 
 Resources:
-  kubernetesCluster:
+  eksCluster:
+    DependsOn: eksServiceRole
     Type: AWS::EKS::Cluster
     Properties:
-      Name:  !Join [ "-", [ !Ref uniqueIdentifier, !Ref applicationName, "kubernetes-cluster" ]]
-      Version: '1.11'
-      RoleArn: !GetAtt kubernetesServiceRole.Arn
+      Name:  !Join [ "-", [ !Ref uniqueIdentifier, !Ref environment, !Ref applicationName, "eks-cluster" ]]
+      Version: '1.16'
+      RoleArn: !GetAtt eksServiceRole.Arn
+      EncryptionConfig:
+        - Provider:
+            KeyArn: !GetAtt eksCustomManagedKey.Arn
+          Resources:
+            - secrets
       ResourcesVpcConfig:
         SecurityGroupIds:
           - !Select [0, !Ref securityGroupIds]
@@ -69,10 +79,40 @@ Resources:
           - !Select [0, !Ref subnetId]
           - !Select [1, !Ref subnetId]
 
-  kubernetesServiceRole:
+  managedNodeGroup:
+    Type: AWS::EKS::Nodegroup
+    Properties:
+      ClusterName: !Ref eksCluster
+      DiskSize: 40
+      InstanceTypes: !Ref nodeGroupInstanceType
+      NodegroupName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref environment, !Ref applicationName, "nodegroup" ]]
+      NodeRole: !GetAtt eksNodeRole.Arn
+      Subnets:
+        - !Select [0, !Ref subnetId]
+        - !Select [1, !Ref subnetId]
+
+  eksNodeRole:
     Type: 'AWS::IAM::Role'
     Properties:
-      RoleName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref applicationName, "kubernetes-service-role" ]]
+      RoleName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref environment, !Ref applicationName, "NodeInstanceRole" ]]
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+
+  eksServiceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref environment, !Ref applicationName, "eks-service-role" ]]
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -85,3 +125,43 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonEKSServicePolicy
         - arn:aws:iam::aws:policy/AmazonEKSClusterPolicy
+
+  eksCustomManagedKeyAlias:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: !Sub alias/${uniqueIdentifier}-${environment}-${applicationName}-cmk
+      TargetKeyId: !Ref eksCustomManagedKey
+
+  eksCustomManagedKey:
+    Type: AWS::KMS::Key
+    Properties:
+      Description: Key to encrypt EKS secrets
+      Enabled: true
+      KeyPolicy:
+        Version: 2012-10-17
+        Id: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-cmk
+        Statement:
+          - Sid: Allow Administration of Key
+            Effect: Allow
+            Principal:
+              AWS:
+                - !Sub "arn:aws:iam::${AWS::AccountId}:root"
+            Action:
+              - kms:*
+            Resource: "*"
+          - Sid: Allow use of Key
+            Effect: Allow
+            Principal:
+              AWS:
+                - !GetAtt eksServiceRole.Arn
+            Action:
+              - kms:Decrypt
+            Resource: "*"
+
+
+Outputs:
+  EksRoleArn:
+    Description: EKS role for creating aws resources
+    Value: !GetAtt eksServiceRole.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-RoleArn"
