@@ -1,0 +1,491 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Initial pipeline for deployments - updated 2020/01/29"
+
+Parameters:
+
+  environment:
+    Description: Development Envrionment Name
+    Type: String
+    Default: dev
+    AllowedValues:
+      - build
+      - dev
+      - qa
+      - prod
+
+  uniqueIdentifier:
+    Type: String
+    Description: "A unique organization identifier (ie: nelsone). This will be the prefix for created resources."
+    Default: uniqueIdentifier
+
+  # can this be merged to one below?
+  applicationName:
+    Type: String
+    Description: "the name of the application that the pipeline builds. The unique identifier will be added as a prefix."
+
+  applicationLayer:
+    Type: String
+    Description: "the name of the application layer being built"
+    Default: "api"
+    AllowedValues:
+      - "datafeed"
+      - "learnerTool"
+      - "adminTool"
+      - "api"
+
+  codeBuildProjectName:
+    Type: String
+    Description: "the name to use for the codebuild project. The unique identifier will be added as a prefix."
+
+  codeBuildProjectDescription:
+    Type: String
+    Description: "brief description to use for the codebuild project."
+
+  vpcId:
+    Type: AWS::EC2::VPC::Id
+
+  subnets:
+    Type: AWS::EC2::Subnet::Id
+
+  securityGroupIds:
+    Type: AWS::EC2::SecurityGroup::Id
+
+  GitHubOwner:
+    Type: String
+    Default: alexnelsone
+
+  RepositoryName:
+    Type: String
+
+  BranchName:
+    Type: String
+
+  GitHubSecret:
+    Type: String
+    NoEcho: true
+
+
+  GitHubOAuthToken:
+    Type: String
+    Description: "This comes from github. If you have a service account in github for this build, it will be the oauth token associated with that account."
+    NoEcho: true
+
+  buildProjectImage:
+    Type: String
+    Default: "077375377515.dkr.ecr.us-east-1.amazonaws.com/dev-nelsone-container-repository:nelsone-php74"
+    AllowedValues:
+      - "aws/codebuild/standard:2.0"
+      - "aws/codebuild/docker:17.09.0"
+      - "aws/codebuild/python:2.7.12"
+      - "ACCT.dkr.ecr.us-east-1.amazonaws.com/dev-nelsone-docker-terraform-container-repository:latest"
+      - "ACCT.dkr.ecr.us-east-1.amazonaws.com/dev-nelsone-container-repository:php-composer"
+      - "ACCT.dkr.ecr.us-east-1.amazonaws.com/dev-nelsone-container-repository:nelsone-php74"
+
+
+  buildSpecFileName:
+    Type: String
+    Default: "buildspec-docker-simple.yaml"
+    Description: "the name of the buildspec file for the build project to execute."
+
+  GitHubCloneUrl:
+    Type: String
+    Default: "https://github.com/alexnelsone/"
+
+  deploymentGroupKey:
+    Type: String
+    Default: "nelsone:deploy:dev:api"
+
+  pipelineNotificationEmail:
+    Type: String
+
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "General Information"
+        Parameters:
+          - environment
+          - uniqueIdentifier
+          - applicationName
+          - pipelineNotificationEmail
+      - Label:
+          default: "Github information"
+        Parameters:
+          - GitHubSecret
+          - GitHubOAuthToken
+      - Label:
+          default: "Deployment Group Info"
+        Parameters:
+          - deploymentGroupKey
+      - Label:
+          default: "CodeBuild Project Information"
+        Parameters:
+          - codeBuildProjectName
+          - codeBuildProjectDescription
+          - buildSpecFileName
+      - Label:
+          default: "Network Information"
+        Parameters:
+          - vpcId
+          - subnets
+          - securityGroupIds
+
+    ParameterLabels:
+      environment:
+        default: "Development environment for this template"
+      uniqueIdentifier:
+        default: "Unique Identifier"
+      applicationName:
+        default: "Application Name"
+      codeBuildProjectName:
+        default: "The name of the CodeBuild project"
+      codeBuildProjectDescription:
+        default: "Description for the CodeBuild project"
+      vpcId:
+        default: "Select VPC"
+      subnets:
+        default: "Subnets"
+      securityGroupIds:
+        default: "Security Groups"
+      GitHubSecret:
+        default: "github secret"
+      GitHubOAuthToken:
+        default: "github oauth token"
+      buildSpecFileName:
+        default: "buildspec filename"
+      deploymentGroupKey:
+        default: "Key to identify deployment Group targets"
+      pipelineNotificationEmail:
+        default: "Email to send approval requests to"
+
+
+
+Resources:
+  codepipelineSNS:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-pipeline-alerts
+      TopicName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-pipeline-alerts
+      Subscription:
+        - Endpoint: !Ref pipelineNotificationEmail
+          Protocol: email
+
+  CodeBuildProjectForUnitTest:
+    Type: "AWS::CodeBuild::Project"
+    Properties:
+      Name: !Join [ "-" , [ !Ref uniqueIdentifier, !Ref applicationName, !Ref environment, "unit-tests" ]]
+      Description: !Sub "runs unit tests for the  ${applicationName} application"
+      ServiceRole: !Ref CodePipelineServiceRole
+      Artifacts:
+        Type: CODEPIPELINE
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: !Join ["-", ["unit_tests",!Ref buildSpecFileName]]
+      LogsConfig:
+        S3Logs:
+          EncryptionDisabled: false
+          Location: dev-nelsone-codebuild-artifact-us-east-1/unit_test_output-api
+          Status: ENABLED
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: !Ref buildProjectImage
+      Cache:
+        Location: !Join [ "", [ "dev-nelsone-pipeline-artifact-store-us-east-1/cache/unit_tests/", !Ref applicationName, !Ref environment ]]
+        Modes:
+          - LOCAL_SOURCE_CACHE
+        Type: S3
+      #      Triggers:
+      #        Webhook: true
+      #        FilterGroups:
+      #          - - Type: EVENT
+      #              Pattern: PULL_REQUEST_CREATED,PULL_REQUEST_UPDATED
+      #            - Type: BASE_REF
+      #              Pattern: !Join ["",["^refs/heads/", !Ref BranchName,"$"]]
+      VpcConfig:
+        VpcId: !Ref vpcId
+        Subnets:
+          - !Ref subnets
+        SecurityGroupIds:
+          - !Ref securityGroupIds
+
+
+
+  CodeBuildProject:
+    Type: "AWS::CodeBuild::Project"
+    Properties:
+      Name: !Join [ "-" , [ !Ref uniqueIdentifier, !Ref applicationName, !Ref environment, "build" ]]
+      Description: !Sub "builds and packages the ${applicationName} application"
+      ServiceRole: !Ref CodePipelineServiceRole
+      Artifacts:
+        Type: NO_ARTIFACTS
+      Source:
+        Type: GITHUB
+        BuildSpec: !Ref buildSpecFileName
+        Location: !Ref GitHubCloneUrl
+        ReportBuildStatus: true
+      LogsConfig:
+        S3Logs:
+          EncryptionDisabled: false
+          Location: dev-nelsone-codebuild-artifact-us-east-1/build_output
+          Status: ENABLED
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: !Ref buildProjectImage
+      Cache:
+        Location: !Join [ "", [ "dev-nelsone-pipeline-artifact-store-us-east-1/cache/", !Ref applicationName, !Ref environment ]]
+        Modes:
+          - LOCAL_SOURCE_CACHE
+        Type: S3
+      Triggers:
+        Webhook: true
+        FilterGroups:
+          - - Type: EVENT
+              Pattern: PULL_REQUEST_CREATED,PULL_REQUEST_UPDATED
+            - Type: BASE_REF
+              Pattern: !Join ["",["^refs/heads/", !Ref BranchName,"$"]]
+      VpcConfig:
+        VpcId: !Ref vpcId
+        Subnets:
+          - !Ref subnets
+        SecurityGroupIds:
+          - !Ref securityGroupIds
+
+  CodePipelineServiceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref applicationName, !Ref environment, "pipeline-service-role-1" ]]
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+                - codebuild.amazonaws.com
+                - codedeploy.amazonaws.com
+                - ec2.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref applicationName, !Ref environment, "pipeline-service-role-policy-1" ]]
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'codecommit:CancelUploadArchive'
+                  - 'codecommit:GetBranch'
+                  - 'codecommit:GetCommit'
+                  - 'codecommit:GetUploadArchiveStatus'
+                  - 'codecommit:UploadArchive'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'codedeploy:CreateDeployment'
+                  - 'codedeploy:GetApplicationRevision'
+                  - 'codedeploy:GetDeployment'
+                  - 'codedeploy:GetDeploymentConfig'
+                  - 'codedeploy:RegisterApplicationRevision'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'codebuild:BatchGetBuilds'
+                  - 'codebuild:StartBuild'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'iam:PassRole'
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - 'cloudwatch:*'
+                  - 's3:*'
+                  - 'sns:*'
+                  - 'cloudformation:*'
+                  - 'ec2:DescribeSecurityGroups'
+                  - 'ec2:DescribeSubnets'
+                  - "ec2:DescribeInstances"
+                  - "ec2:DescribeInstanceStatus"
+                  - 'ec2:CreateNetworkInterface'
+                  - 'ec2:DescribeNetworkInterfaces'
+                  - 'ec2:DeleteNetworkInterface'
+                  - 'ec2:DescribeDhcpOptions'
+                  - 'ec2:DescribeVpcs'
+                  - 'ec2:DescribeSecurityGroups'
+                  - 'ec2:DescribeSubnets'
+                  - 'ec2:CreateNetworkInterfacePermission'
+                  - 'ec2:StartInstances'
+                  - 'ec2:RunInstances'
+                  - 'ec2:StopInstances'
+                  - 'ec2:RebootInstances'
+                  - 'ec2:TerminateInstances'
+                  - 'ec2:CreateTags'
+                  - 'ec2:DeleteTags'
+                  - 'logs:PutLogEvents'
+                  - 'logs:CreateLogStream'
+                  - 'logs:CreateLogGroup'
+                  - "ecr:GetAuthorizationToken"
+                  - "ecr:BatchCheckLayerAvailability"
+                  - "ecr:GetDownloadUrlForLayer"
+                  - "ecr:GetRepositoryPolicy"
+                  - "ecr:DescribeRepositories"
+                  - "ecr:ListImages"
+                  - "ecr:DescribeImages"
+                  - "ecr:BatchGetImage"
+                  - "ecr:InitiateLayerUpload"
+                  - "ecr:UploadLayerPart"
+                  - "ecr:CompleteLayerUpload"
+                  - "ecr:PutImage"
+                  - "dynamodb:PutItem"
+                  - "dynamodb:GetItem"
+                  - "dynamodb:DeleteItem"
+                  - "ssm:GetParameters"
+                  - "tag:GetResources"
+                  - "cloudwatch:DescribeAlarms"
+                  - "cloudwatch:PutMetricAlarm"
+                Resource: '*'
+
+
+  githubWebHook:
+    Type: "AWS::CodePipeline::Webhook"
+    Properties:
+      Authentication: GITHUB_HMAC
+      AuthenticationConfiguration:
+        SecretToken: !Ref GitHubSecret
+      Filters:
+        - JsonPath: $.ref
+          MatchEquals: 'refs/heads/{Branch}'
+      TargetPipeline: !Ref ApplicationPipeline
+      TargetAction: SourceAction
+      Name: !Join [ "-", [ !Ref environment, !Ref uniqueIdentifier, !Ref applicationName, !Ref "AWS::Region" ]]
+      TargetPipelineVersion: !GetAtt
+        - ApplicationPipeline
+        - Version
+      RegisterWithThirdParty: true
+
+  codeDeployApplication:
+    Type: "AWS::CodeDeploy::Application"
+    Properties:
+      ApplicationName: !Sub "${uniqueIdentifier}-${applicationName}-${environment}-codeDeploy-Application"
+      ComputePlatform: "Server"
+
+  codeDeploymentGroup:
+    Type: "AWS::CodeDeploy::DeploymentGroup"
+    DependsOn: codeDeployApplication
+    Properties:
+      DeploymentGroupName: !Sub "${uniqueIdentifier}-${applicationLayer}-${environment}-deployment-group"
+      ApplicationName: !Ref codeDeployApplication
+      ServiceRoleArn: !GetAtt CodePipelineServiceRole.Arn
+      DeploymentConfigName: CodeDeployDefault.AllAtOnce
+      Ec2TagFilters:
+        - Key: !Ref deploymentGroupKey
+          Value: "true"
+          Type: "KEY_AND_VALUE"
+
+  codeDeploymentConfig:
+    Type: "AWS::CodeDeploy::DeploymentConfig"
+    Properties:
+      MinimumHealthyHosts:
+        Type: HOST_COUNT
+        Value: 2
+
+  ApplicationPipeline:
+    Type: "AWS::CodePipeline::Pipeline"
+    Properties:
+      Name: !Sub "${uniqueIdentifier}-${applicationName}-${environment}-pipeline"
+      RoleArn: !GetAtt CodePipelineServiceRole.Arn
+      ArtifactStore:
+        #Location: !Join [ "-", [ !Ref environment, !Ref uniqueIdentifier, 'pipeline-artifact-store', !Ref "AWS::Region" ]]
+        Location: dev-nelsone-deployment-artifacts-store-us-east-1
+        Type: S3
+        EncryptionKey:
+          Id: 47ca8eee-c3ba-4efd-8fa9-b244ef3e7da2
+          Type: KMS
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: SourceAction
+              Namespace: SourceVariables
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Version: 1
+                Provider: GitHub
+              OutputArtifacts:
+                - Name: SourceOutput
+              Configuration:
+                Owner: !Ref GitHubOwner
+                Repo: !Ref RepositoryName
+                Branch: !Ref BranchName
+                OAuthToken: !Ref GitHubOAuthToken
+                PollForSourceChanges: false
+              RunOrder: 1
+        - Name: UnitTests
+          Actions:
+            - Name: !Sub "${uniqueIdentifier}-${applicationName}-build"
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: 1
+              Configuration:
+                #ProjectName: !Ref codeBuildProjectName
+                ProjectName: !Ref CodeBuildProjectForUnitTest
+                EnvironmentVariables: !Sub '[{"name":"environment","value":"${environment}","type":"PLAINTEXT"},{"name":"domainName","value":"nelsone.net","type":"PLAINTEXT"},{"name":"branch","value":"#{SourceVariables.BranchName}","type":"PLAINTEXT"}]'
+              InputArtifacts:
+                - Name: SourceOutput
+              RunOrder: 1
+        - Name: Build-Approval
+          Actions:
+            - Name: BuildApproval
+              ActionTypeId:
+                Category: Approval
+                Owner: AWS
+                Provider: Manual
+                Version: 1
+              Configuration:
+                CustomData: "Do you approve running the build for this source?"
+                NotificationArn: !Ref codepipelineSNS
+        - Name: Build
+          Actions:
+            - Name: !Sub "${uniqueIdentifier}-${applicationName}-build"
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: 1
+              Configuration:
+                #ProjectName: !Ref codeBuildProjectName
+                ProjectName: !Ref CodeBuildProject
+                EnvironmentVariables: !Sub '[{"name":"environment","value":"${environment}","type":"PLAINTEXT"},{"name":"domainName","value":"nelsone.net","type":"PLAINTEXT"},{"name":"branch","value":"#{SourceVariables.BranchName}","type":"PLAINTEXT"}]'
+              InputArtifacts:
+                - Name: SourceOutput
+              OutputArtifacts:
+                - Name: buildSource
+              RunOrder: 1
+        - Name: Deploy
+          Actions:
+            - Name: !Sub "${uniqueIdentifier}-${applicationName}-deploy"
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CodeDeploy
+                Version: 1
+              InputArtifacts:
+                - Name: buildSource
+              Configuration:
+                ApplicationName: !Ref codeDeployApplication
+                DeploymentGroupName: !Ref codeDeploymentGroup
+
+
+
+
+Outputs:
+  CodePipelineServiceRole:
+    Description: Role used for Pipeline
+    Value: !GetAtt CodePipelineServiceRole.Arn
+    Export:
+      Name: !Sub "${uniqueIdentifier}-${applicationName}-${environment}-pipeline-role-name-2"

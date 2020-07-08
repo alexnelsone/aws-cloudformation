@@ -383,7 +383,7 @@ Resources:
                 ActionMode: CHANGE_SET_REPLACE
                 StackName: !Sub ${stackNameToUpdate}
                 #              RoleArn: !Ref CodePipelineServiceRole
-                RoleArn: 'arn:aws:iam::077375377515:role/wisetail-lambda-slack-notifier-lambda-deployment-service-role'
+                RoleArn: 'arn:aws:iam::077375377515:role/nelsone-lambda-slack-notifier-lambda-deployment-service-role'
                 #              RoleArn: "arn:aws:iam::077375377515:role/test_pipeline_lambda"
                 TemplatePath: !Join [ "", [ "templateSource::", !Ref deploymentTemplateName ]]
                 ChangeSetName: !Join ["", [ !Ref stackNameToUpdate, "ChangeSet" ]]
