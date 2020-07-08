@@ -84,14 +84,19 @@ Resources:
     Properties:
       ClusterName: !Ref eksCluster
       DiskSize: 40
-      InstanceTypes: !Ref nodeGroupInstanceType
+      InstanceTypes:
+        - !Ref nodeGroupInstanceType
       NodegroupName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref environment, !Ref applicationName, "nodegroup" ]]
-      NodeRole: !GetAtt eksNodeRole.Arn
+      NodeRole: !GetAtt NodeRole.Arn
+      ScalingConfig:
+        MinSize: 3
+        MaxSize: 3
+        DesiredSize: 3
       Subnets:
         - !Select [0, !Ref subnetId]
         - !Select [1, !Ref subnetId]
 
-  eksNodeRole:
+  NodeRole:
     Type: 'AWS::IAM::Role'
     Properties:
       RoleName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref environment, !Ref applicationName, "NodeInstanceRole" ]]
