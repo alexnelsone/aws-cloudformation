@@ -1,0 +1,212 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: "Creates eks Cluster"
+
+Parameters:
+  environment:
+    Description: Development Envrionment Name
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - stage
+      - qa
+      - prod
+
+  uniqueIdentifier:
+    Description: A unique identifier to associate who this pipeline is for
+    Type: String
+    Default: uniqueId
+
+  applicationName:
+    Description: application name this topic is for
+    Type: String
+
+  vpcId:
+    Type: AWS::EC2::VPC::Id
+
+  securityGroupIds:
+    Type: List<AWS::EC2::SecurityGroup::Id>
+
+  nodeGroupInstanceType:
+    Type: String
+    Default: t3.medium
+
+  nodeGroupSubnetId:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: "select two"
+
+  eksClusterName:
+    Type: String
+    Description: "EKS Cluster Name"
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "Application Information"
+        Parameters:
+          - environment
+          - uniqueIdentifier
+          - applicationName
+      - Label:
+          default: "Control Plane Network Information"
+        Parameters:
+          - vpcId
+          - securityGroupIds
+      - Label:
+          default: "NodeGroup Configuration"
+        Parameters:
+          - nodeGroupInstanceType
+          - nodeGroupSubnetId
+    ParameterLabels:
+      environment:
+        default: Development environment for this template
+      uniqueIdentifier:
+        default: A unique Identifier to prefix the topic with
+      applicationName:
+        default: The name of the application or project that will use this topic
+
+
+Resources:
+
+  managedNodeGroup:
+    Type: AWS::EKS::Nodegroup
+    Properties:
+      ClusterName: !Ref eksClusterName
+      DiskSize: 40
+      InstanceTypes:
+        - !Ref nodeGroupInstanceType
+      NodegroupName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref environment, !Ref applicationName, "nodegroup" ]]
+      NodeRole: !GetAtt NodeRole.Arn
+      ScalingConfig:
+        MinSize: 3
+        MaxSize: 3
+        DesiredSize: 3
+      Subnets:
+        - !Select [0, !Ref nodeGroupSubnetId]
+        - !Select [1, !Ref nodeGroupSubnetId]
+      Tags:
+        - Key: environment
+          Value: !Ref environment
+        - Key: application
+          Value: !Ref applicationName
+
+  NodeRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref environment, !Ref applicationName, "NodeInstanceRole" ]]
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
+      Tags:
+        - Key: environment
+          Value: !Ref environment
+        - Key: application
+          Value: !Ref applicationName
+
+  ALBIngressPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref environment, !Ref applicationName, "ALBIngressPolicy" ]]
+      Roles:
+        - Ref: NodeRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action:
+              - acm:DescribeCertificate
+              - acm:ListCertificates
+              - acm:GetCertificate
+              - ec2:AuthorizeSecurityGroupIngress
+              - ec2:CreateSecurityGroup
+              - ec2:CreateTags
+              - ec2:DeleteTags
+              - ec2:DeleteSecurityGroup
+              - ec2:DescribeAccountAttributes
+              - ec2:DescribeAddresses
+              - ec2:DescribeInstances
+              - ec2:DescribeInstanceStatus
+              - ec2:DescribeInternetGateways
+              - ec2:DescribeNetworkInterfaces
+              - ec2:DescribeSecurityGroups
+              - ec2:DescribeSubnets
+              - ec2:DescribeTags
+              - ec2:DescribeVpcs
+              - ec2:ModifyInstanceAttribute
+              - ec2:ModifyNetworkInterfaceAttribute
+              - ec2:RevokeSecurityGroupIngress
+              - elasticloadbalancing:AddListenerCertificates
+              - elasticloadbalancing:AddTags
+              - elasticloadbalancing:CreateListener
+              - elasticloadbalancing:CreateLoadBalancer
+              - elasticloadbalancing:CreateRule
+              - elasticloadbalancing:CreateTargetGroup
+              - elasticloadbalancing:DeleteListener
+              - elasticloadbalancing:DeleteLoadBalancer
+              - elasticloadbalancing:DeleteRule
+              - elasticloadbalancing:DeleteTargetGroup
+              - elasticloadbalancing:DeregisterTargets
+              - elasticloadbalancing:DescribeListenerCertificates
+              - elasticloadbalancing:DescribeListeners
+              - elasticloadbalancing:DescribeLoadBalancers
+              - elasticloadbalancing:DescribeLoadBalancerAttributes
+              - elasticloadbalancing:DescribeRules
+              - elasticloadbalancing:DescribeSSLPolicies
+              - elasticloadbalancing:DescribeTags
+              - elasticloadbalancing:DescribeTargetGroups
+              - elasticloadbalancing:DescribeTargetGroupAttributes
+              - elasticloadbalancing:DescribeTargetHealth
+              - elasticloadbalancing:ModifyListener
+              - elasticloadbalancing:ModifyLoadBalancerAttributes
+              - elasticloadbalancing:ModifyRule
+              - elasticloadbalancing:ModifyTargetGroup
+              - elasticloadbalancing:ModifyTargetGroupAttributes
+              - elasticloadbalancing:RegisterTargets
+              - elasticloadbalancing:RemoveListenerCertificates
+              - elasticloadbalancing:RemoveTags
+              - elasticloadbalancing:SetIpAddressType
+              - elasticloadbalancing:SetSecurityGroups
+              - elasticloadbalancing:SetSubnets
+              - elasticloadbalancing:SetWebACL
+              - iam:CreateServiceLinkedRole
+              - iam:GetServerCertificate
+              - iam:ListServerCertificates
+              - waf-regional:GetWebACLForResource
+              - waf-regional:GetWebACL
+              - waf-regional:AssociateWebACL
+              - waf-regional:DisassociateWebACL
+              - tag:GetResources
+              - tag:TagResources
+              - waf:GetWebACL
+              - wafv2:GetWebACL
+              - wafv2:GetWebACLForResource
+              - wafv2:AssociateWebACL
+              - wafv2:DisassociateWebACL
+              - shield:DescribeProtection
+              - shield:GetSubscriptionState
+              - shield:DeleteProtection
+              - shield:CreateProtection
+              - shield:DescribeSubscription
+              - shield:ListProtections
+            Effect: Allow
+            Resource: "*"
+        Tags:
+          - Key: environment
+            Value: !Ref environment
+          - Key: application
+            Value: !Ref applicationName
+
+
+
+
+

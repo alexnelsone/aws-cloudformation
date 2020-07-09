@@ -31,9 +31,6 @@ Parameters:
   securityGroupIds:
     Type: List<AWS::EC2::SecurityGroup::Id>
 
-  nodeGroupInstanceType:
-    Type: String
-    Default: t3.medium
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -45,7 +42,7 @@ Metadata:
           - uniqueIdentifier
           - applicationName
       - Label:
-          default: "Network Information"
+          default: "Control Plane Network Information"
         Parameters:
           - vpcId
           - subnetId
@@ -60,7 +57,7 @@ Metadata:
 
 
 Resources:
-  eksCluster:
+  eksControlPlane:
     DependsOn: eksServiceRole
     Type: AWS::EKS::Cluster
     Properties:
@@ -74,50 +71,17 @@ Resources:
             - secrets
       ResourcesVpcConfig:
         SecurityGroupIds:
-          - !Select [0, !Ref securityGroupIds]
+          - !Ref eksControlSecurityGroup
         SubnetIds:
           - !Select [0, !Ref subnetId]
           - !Select [1, !Ref subnetId]
 
-  managedNodeGroup:
-    Type: AWS::EKS::Nodegroup
-    Properties:
-      ClusterName: !Ref eksCluster
-      DiskSize: 40
-      InstanceTypes:
-        - !Ref nodeGroupInstanceType
-      NodegroupName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref environment, !Ref applicationName, "nodegroup" ]]
-      NodeRole: !GetAtt NodeRole.Arn
-      ScalingConfig:
-        MinSize: 3
-        MaxSize: 3
-        DesiredSize: 3
-      Subnets:
-        - !Select [0, !Ref subnetId]
-        - !Select [1, !Ref subnetId]
 
-  NodeRole:
-    Type: 'AWS::IAM::Role'
-    Properties:
-      RoleName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref environment, !Ref applicationName, "NodeInstanceRole" ]]
-      AssumeRolePolicyDocument:
-        Version: 2012-10-17
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - ec2.amazonaws.com
-            Action: 'sts:AssumeRole'
-      Path: /
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy
-        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
-        - arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy
 
   eksServiceRole:
     Type: 'AWS::IAM::Role'
     Properties:
-      RoleName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref environment, !Ref applicationName, "eks-service-role" ]]
+      RoleName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-eks-service-role
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -162,6 +126,26 @@ Resources:
             Action:
               - kms:Decrypt
             Resource: "*"
+
+  eksControlSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-eksControl-sg
+      GroupDescription: Security Group for EC2 instance
+      VpcId:
+        # import value with sub not support with short firm
+        Fn::ImportValue:
+          !Sub ${uniqueIdentifier}-vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: 10.0.0.0/0
+      Tags:
+        - Key: environment
+          Value: !Ref environment
+        - Key: application
+          Value: !Ref applicationName
 
 
 Outputs:
