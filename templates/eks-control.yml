@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: "Creates eks Cluster"
+Description: "Creates eks Cluster Control Plane"
 
 Parameters:
   environment:

@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: 2010-09-09
-Description: "Creates eks Cluster"
+Description: "Creates eks Cluster Node Group"
 
 Parameters:
   environment:
@@ -23,9 +23,6 @@ Parameters:
 
   vpcId:
     Type: AWS::EC2::VPC::Id
-
-  securityGroupIds:
-    Type: List<AWS::EC2::SecurityGroup::Id>
 
   nodeGroupInstanceType:
     Type: String
@@ -52,7 +49,6 @@ Metadata:
           default: "Control Plane Network Information"
         Parameters:
           - vpcId
-          - securityGroupIds
       - Label:
           default: "NodeGroup Configuration"
         Parameters:
@@ -85,11 +81,6 @@ Resources:
       Subnets:
         - !Select [0, !Ref nodeGroupSubnetId]
         - !Select [1, !Ref nodeGroupSubnetId]
-      Tags:
-        - Key: environment
-          Value: !Ref environment
-        - Key: application
-          Value: !Ref applicationName
 
   NodeRole:
     Type: 'AWS::IAM::Role'
@@ -113,6 +104,7 @@ Resources:
           Value: !Ref environment
         - Key: application
           Value: !Ref applicationName
+
 
   ALBIngressPolicy:
     Type: AWS::IAM::Policy
@@ -200,11 +192,7 @@ Resources:
               - shield:ListProtections
             Effect: Allow
             Resource: "*"
-        Tags:
-          - Key: environment
-            Value: !Ref environment
-          - Key: application
-            Value: !Ref applicationName
+
 
 
 
