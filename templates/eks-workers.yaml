@@ -36,6 +36,18 @@ Parameters:
     Type: String
     Description: "EKS Cluster Name"
 
+  nodeGroupMinSize:
+    Type: String
+    Default: 2
+
+  nodeGroupMaxSize:
+    Type: String
+    Default: 2
+
+  nodeGroupDesiredSize:
+    Type: String
+    Default: 2
+
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -46,7 +58,7 @@ Metadata:
           - uniqueIdentifier
           - applicationName
       - Label:
-          default: "Control Plane Network Information"
+          default: "Node GroupNetwork Information"
         Parameters:
           - vpcId
       - Label:
@@ -54,6 +66,9 @@ Metadata:
         Parameters:
           - nodeGroupInstanceType
           - nodeGroupSubnetId
+          - nodeGroupMinSize
+          - nodeGroupMaxSize
+          - nodeGroupDesiredSize
     ParameterLabels:
       environment:
         default: Development environment for this template
@@ -61,6 +76,12 @@ Metadata:
         default: A unique Identifier to prefix the topic with
       applicationName:
         default: The name of the application or project that will use this topic
+      nodeGroupMinSize:
+        default: Minimum size for node group
+      nodeGroupMaxSize:
+        default: Max size for the node group
+      nodeGroupDesiredSize:
+        default: Desired size for node group
 
 
 Resources:
@@ -75,12 +96,17 @@ Resources:
       NodegroupName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref environment, !Ref applicationName, "nodegroup" ]]
       NodeRole: !GetAtt NodeRole.Arn
       ScalingConfig:
-        MinSize: 3
-        MaxSize: 3
-        DesiredSize: 3
+        MinSize: !Ref nodeGroupMinSize
+        MaxSize: !Ref nodeGroupMaxSize
+        DesiredSize: !Ref nodeGroupDesiredSize
       Subnets:
         - !Select [0, !Ref nodeGroupSubnetId]
         - !Select [1, !Ref nodeGroupSubnetId]
+      Tags:
+        {
+          "application": !Ref applicationName,
+          "environment" : !Ref environment
+        }
 
   NodeRole:
     Type: 'AWS::IAM::Role'

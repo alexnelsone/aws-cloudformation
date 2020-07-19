@@ -31,6 +31,10 @@ Parameters:
   securityGroupIds:
     Type: List<AWS::EC2::SecurityGroup::Id>
 
+  kubernetesVersion:
+    Type: String
+    Default: 1.17
+
 
 Metadata:
   AWS::CloudFormation::Interface:
@@ -47,6 +51,7 @@ Metadata:
           - vpcId
           - subnetId
           - securityGroupIds
+          - kubernetesVersion
     ParameterLabels:
       environment:
         default: Development environment for this template
@@ -54,6 +59,8 @@ Metadata:
         default: A unique Identifier to prefix the topic with
       applicationName:
         default: The name of the application or project that will use this topic
+      kubernetesVersion:
+        default: The version of kubernetes to install
 
 
 Resources:
@@ -62,7 +69,7 @@ Resources:
     Type: AWS::EKS::Cluster
     Properties:
       Name:  !Join [ "-", [ !Ref uniqueIdentifier, !Ref environment, !Ref applicationName, "eks-cluster" ]]
-      Version: '1.16'
+      Version: !Ref kubernetesVersion
       RoleArn: !GetAtt eksServiceRole.Arn
       EncryptionConfig:
         - Provider:
@@ -132,10 +139,7 @@ Resources:
     Properties:
       GroupName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-eksControl-sg
       GroupDescription: Security Group for EC2 instance
-      VpcId:
-        # import value with sub not support with short firm
-        Fn::ImportValue:
-          !Sub ${uniqueIdentifier}-vpc
+      VpcId: !Ref vpcId
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: '22'
