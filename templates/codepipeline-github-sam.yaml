@@ -73,6 +73,21 @@ Parameters:
     Default: "buildspec.yaml"
     Description: "the name of the buildspec file for the build project to execute."
 
+  githubOwner:
+    Type: String
+
+  repositoryName:
+    Type: String
+
+  branchName:
+    Type: String
+
+  gitHubOAuthToken:
+    Description: OAuth token used by AWS CodePipeline to connect to GitHub
+    NoEcho: true
+    Type: String
+    Default: ''
+
 
 Resources:
   codepipelineSNS:
@@ -98,7 +113,7 @@ Resources:
       LogsConfig:
         S3Logs:
           EncryptionDisabled: false
-          Location: !Sub ${uniqueIdentifier}-${environment}-artifacts-store-${AWS::Region}/build_logs/
+          Location: !Sub ${uniqueIdentifier}-${environment}-artifacts-store-${AWS::Region}/build_logs
           Status: ENABLED
       Environment:
         Type: !Ref codeBuildEnvironmentType
@@ -122,14 +137,14 @@ Resources:
       Description: !Sub "Used for ${applicationName} in ${environment}. Created by CloudFormation ${AWS::StackId}"
       Path: /service-role/
       AssumeRolePolicyDocument:
+        Version: '2012-10-17'
         Statement:
-          Version: '2012-10-17'
-          - Action:
-              - sts:AssumeRole
-            Effect: Allow
-            Principal:
-              Service:
-                - codebuild.amazonaws.com
+        - Action:
+          - sts:AssumeRole
+          Effect: Allow
+          Principal:
+            Service:
+            - codebuild.amazonaws.com
 
   codeBuildPolicy:
     Type: AWS::IAM::Policy
@@ -188,6 +203,12 @@ Resources:
                   - !Sub arn:${AWS::Partition}:s3:::${uniqueIdentifier}-${environment}-artifacts-store-${AWS::Region}/*
               - Effect: Allow
                 Action:
+                  - ec2:DescribeSecurityGroups
+                  - ec2:DescribeSubnets
+                Resource:
+                  - ec2:*
+              - Effect: Allow
+                Action:
                   - s3:ListBucket
                   - s3:GetBucketPolicy
                 Resource:
@@ -206,3 +227,84 @@ Resources:
                 Resource:
                   - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${uniqueIdentifier}-${environment}-${applicationName}-${AWS::StackId}/*
 
+  codePipeline:
+    Type: AWS::CodePipeline::Pipeline
+    Properties:
+      ArtifactStore:
+        Location: !Sub arn:${AWS::Partition}:s3:::${uniqueIdentifier}-${environment}-artifacts-store-${AWS::Region}
+        Type: S3
+      RoleArn: !Ref codePipelineServiceRole
+      Stages:
+        - Name: Source
+          Actions:
+            - Name: GitHubSource
+              ActionTypeId:
+                Category: Source
+                Owner: ThirdParty
+                Provider: GitHub
+                Version: 1
+              Configuration:
+                Owner: !Ref githubOwner
+                OAuthToken: !Ref gitHubOAuthToken
+                Repo: !Ref repositoryName
+                Branch: !Ref branchName
+                PollForSourceChanges: false
+              OutputArtifacts:
+                - Name: SourceArtifact
+        - Name: Build
+          Actions:
+            - Name: Build
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Provider: CodeBuild
+                Version: "1"
+              Configuration:
+                ProjectName: !Ref codeBuildProject
+              InputArtifacts:
+                - Name: SourceArtifact
+              OutputArtifacts:
+                - Name: BuildArtifact
+        - Name: Deploy
+          Actions:
+            - Name: CreateChangeSet
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: '1'
+              InputArtifacts:
+                - Name: BuildArtifact
+              Configuration:
+                ActionMode: CHANGE_SET_REPLACE
+                Capabilities: CAPABILITY_IAM,CAPABILITY_AUTO_EXPAND
+                RoleArn: !Ref codePipelineServiceRole
+                StackName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-${AWS::StackId}
+                TemplatePath: "BuildArtifact::packaged-template.yaml"
+                ChangeSetName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-${AWS::StackId}-Deploy
+              RunOrder: 1
+            - Name: ExecuteChangeSet
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: '1'
+              Configuration:
+                ActionMode: CHANGE_SET_EXECUTE
+                StackName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-${AWS::StackId}
+                ChangeSetName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-${AWS::StackId}-Deploy
+              RunOrder: 2
+
+  GitHubWebhook:
+    Type: 'AWS::CodePipeline::Webhook'
+    Properties:
+      AuthenticationConfiguration:
+        SecretToken: !Ref gitHubOAuthToken
+      Filters:
+        - JsonPath: "$.ref"
+          MatchEquals: refs/heads/{Branch}
+      Authentication: GITHUB_HMAC
+      TargetPipeline: !Ref codePipeline
+      TargetAction: GitHubSource
+      TargetPipelineVersion: !GetAtt codePipeline.Version
+      RegisterWithThirdParty: true
