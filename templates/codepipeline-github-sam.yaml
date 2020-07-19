@@ -1,0 +1,19 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Initial pipeline for deployments - updated 2020/01/29"
+
+
+Parameters:
+  pipelineNotificationEmail:
+    Type: String
+    Default: 'nelsone@nelsone.io'
+
+
+Resources:
+  codepipelineSNS:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-pipeline-alerts
+      TopicName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-pipeline-alerts
+      Subscription:
+        - Endpoint: !Ref pipelineNotificationEmail
+          Protocol: email

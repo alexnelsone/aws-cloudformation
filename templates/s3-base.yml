@@ -19,6 +19,10 @@ Parameters:
     Type: String
     Description: "a unique organization identifier. This will be the prefix for the created resources."
 
+  exportName:
+    Type: String
+    Default: "something"
+
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
@@ -64,3 +68,11 @@ Resources:
                 TransitionInDays: 90
               - StorageClass: GLACIER
                 TransitionInDays: 181
+
+
+Outputs:
+  BucketOutput:
+    Description: The arn
+    Value: !GetAtt s3Bucket.Arn
+    Export:
+      Name: !Sub ${exportName}
