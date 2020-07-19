@@ -3,9 +3,75 @@ Description: "Initial pipeline for deployments - updated 2020/01/29"
 
 
 Parameters:
+
+  environment:
+    Description: Development Envrionment Name
+    Type: String
+    Default: dev
+    AllowedValues:
+      - build
+      - dev
+      - qa
+      - prod
+
+  uniqueIdentifier:
+    Type: String
+    Description: "A unique organization identifier (ie: nelsone). This will be the prefix for created resources."
+    Default: uniqueIdentifier
+
+  applicationName:
+    Type: String
+    Description: "the name of the application that the pipeline builds. The unique identifier will be added as a prefix."
+
   pipelineNotificationEmail:
     Type: String
     Default: 'nelsone@nelsone.io'
+
+  codeBuildComputeType:
+    Description: CodeBuild project compute type
+    Type: String
+    AllowedValues:
+      - BUILD_GENERAL1_SMALL
+      - BUILD_GENERAL1_MEDIUM
+      - BUILD_GENERAL1_LARGE
+    Default: BUILD_GENERAL1_SMALL
+
+  codeBuildEnvironmentType:
+    Description: Environment type for CodeBuild Project
+    Type: String
+    AllowedValues:
+      - LINUX_CONTAINER
+      - WINDOWS_CONTAINER
+    Default: LINUX_CONTAINER
+
+  sourceCodeProvider:
+    Description: Location of code
+    Type: String
+    AllowedValues:
+      - GitHub
+      - CodeCommit
+
+  buildProjectImage:
+    Type: String
+    Default: "aws/codebuild/standard:2.0"
+    AllowedValues:
+      - "aws/codebuild/standard:2.0"
+      - "aws/codebuild/docker:17.09.0"
+      - "aws/codebuild/python:2.7.12"
+
+  vpcId:
+    Type: AWS::EC2::VPC::Id
+
+  subnets:
+    Type: AWS::EC2::Subnet::Id
+
+  securityGroupIds:
+    Type: AWS::EC2::SecurityGroup::Id
+
+  buildSpecFileName:
+    Type: String
+    Default: "buildspec.yaml"
+    Description: "the name of the buildspec file for the build project to execute."
 
 
 Resources:
@@ -17,3 +83,126 @@ Resources:
       Subscription:
         - Endpoint: !Ref pipelineNotificationEmail
           Protocol: email
+
+  codeBuildProject:
+    Type: "AWS::CodeBuild::Project"
+    Properties:
+      Name: !Join [ "-" , [ !Ref uniqueIdentifier, !Ref applicationName, !Ref environment, "build" ]]
+      Description: !Sub "builds and packages the ${applicationName} application"
+      ServiceRole: !GetAtt buildProjectRole.Arn
+      Artifacts:
+        Type: CODEPIPELINE
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: !Ref buildSpecFileName
+      LogsConfig:
+        S3Logs:
+          EncryptionDisabled: false
+          Location: !Sub ${uniqueIdentifier}-${environment}-artifacts-store-${AWS::Region}/build_logs/
+          Status: ENABLED
+      Environment:
+        Type: !Ref codeBuildEnvironmentType
+        ComputeType: !Ref codeBuildComputeType
+        Image: !Ref buildProjectImage
+      Cache:
+        Location: !Sub ${uniqueIdentifier}-${environment}-artifacts-store-${AWS::Region}/cache/${applicationName}/${environment}
+        Modes:
+          - LOCAL_SOURCE_CACHE
+        Type: S3
+      VpcConfig:
+        VpcId: !Ref vpcId
+        Subnets:
+          - !Ref subnets
+        SecurityGroupIds:
+          - !Ref securityGroupIds
+
+  buildProjectRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: !Sub "Used for ${applicationName} in ${environment}. Created by CloudFormation ${AWS::StackId}"
+      Path: /service-role/
+      AssumeRolePolicyDocument:
+        Statement:
+          Version: '2012-10-17'
+          - Action:
+              - sts:AssumeRole
+            Effect: Allow
+            Principal:
+              Service:
+                - codebuild.amazonaws.com
+
+  codeBuildPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-policy
+      Roles:
+        - !Ref buildProjectRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action:
+              - logs:CreateLogGroup
+              - logs:CreateLogStream
+              - logs:PutLogEvents
+            Effect: Allow
+            Resource:
+              - !Sub arn:${AWS::Partition}:logs:${AWS::Region}:${AWS::AccountId}:log-group:/aws/codebuild/*
+          - Action:
+              - s3:PutObject
+              - s3:GetObject
+              - s3:GetObjectVersion
+            Effect: Allow
+            Resource:
+              - !Sub arn:${AWS::Partition}:s3:::${uniqueIdentifier}-${environment}-artifacts-store-${AWS::Region}/*
+          - Action:
+              - s3:ListBucket
+            Effect: Allow
+            Resource:
+              - !Sub arn:${AWS::Partition}:s3:::${uniqueIdentifier}-${environment}-artifacts-store-${AWS::Region}
+
+  codePipelineServiceRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      Description: !Sub "Used for ${applicationName} in ${environment}. Created by CloudFormation ${AWS::StackId}"
+      Path: /service-role/
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - codepipeline.amazonaws.com
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-pipeline-service-role-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:DeleteObject
+                  - s3:GetObject
+                  - s3:GetObjectVersion
+                  - s3:PutObject
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::${uniqueIdentifier}-${environment}-artifacts-store-${AWS::Region}/*
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:GetBucketPolicy
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::${uniqueIdentifier}-${environment}-artifacts-store-${AWS::Region}
+              - Effect: Allow
+                Action:
+                  - codebuild:BatchGetBuilds
+                  - codebuild:StartBuild
+                Resource: !GetAtt codeBuildProject.Arn
+              - Effect: Allow
+                Action:
+                  - cloudformation:DescribeStacks
+                  - cloudformation:CreateChangeSet
+                  - cloudformation:ExecuteChangeSet
+                  - cloudformation:DescribeChangeSet
+                Resource:
+                  - !Sub arn:${AWS::Partition}:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/${uniqueIdentifier}-${environment}-${applicationName}-${AWS::StackId}/*
+
