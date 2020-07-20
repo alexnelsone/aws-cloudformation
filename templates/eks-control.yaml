@@ -17,19 +17,12 @@ Parameters:
     Type: String
     Default: uniqueId
 
-  applicationName:
-    Description: application name this topic is for
-    Type: String
-
   vpcId:
     Type: AWS::EC2::VPC::Id
 
   subnetId:
     Type: List<AWS::EC2::Subnet::Id>
     Description: "select two"
-
-  securityGroupIds:
-    Type: List<AWS::EC2::SecurityGroup::Id>
 
   kubernetesVersion:
     Type: String
@@ -44,21 +37,17 @@ Metadata:
         Parameters:
           - environment
           - uniqueIdentifier
-          - applicationName
       - Label:
           default: "Control Plane Network Information"
         Parameters:
           - vpcId
           - subnetId
-          - securityGroupIds
           - kubernetesVersion
     ParameterLabels:
       environment:
         default: Development environment for this template
       uniqueIdentifier:
         default: A unique Identifier to prefix the topic with
-      applicationName:
-        default: The name of the application or project that will use this topic
       kubernetesVersion:
         default: The version of kubernetes to install
 
@@ -68,7 +57,7 @@ Resources:
     DependsOn: eksServiceRole
     Type: AWS::EKS::Cluster
     Properties:
-      Name:  !Join [ "-", [ !Ref uniqueIdentifier, !Ref environment, !Ref applicationName, "eks-cluster" ]]
+      Name:  !Join [ "-", [ !Ref uniqueIdentifier, !Ref environment, "eks-cluster" ]]
       Version: !Ref kubernetesVersion
       RoleArn: !GetAtt eksServiceRole.Arn
       EncryptionConfig:
@@ -77,8 +66,6 @@ Resources:
           Resources:
             - secrets
       ResourcesVpcConfig:
-        SecurityGroupIds:
-          - !Ref eksControlSecurityGroup
         SubnetIds:
           - !Select [0, !Ref subnetId]
           - !Select [1, !Ref subnetId]
@@ -88,7 +75,7 @@ Resources:
   eksServiceRole:
     Type: 'AWS::IAM::Role'
     Properties:
-      RoleName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-eks-service-role
+      RoleName: !Sub ${uniqueIdentifier}-${environment}-eks-service-role
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -105,7 +92,7 @@ Resources:
   eksCustomManagedKeyAlias:
     Type: AWS::KMS::Alias
     Properties:
-      AliasName: !Sub alias/${uniqueIdentifier}-${environment}-${applicationName}-cmk
+      AliasName: !Sub alias/${uniqueIdentifier}-${environment}-cmk
       TargetKeyId: !Ref eksCustomManagedKey
 
   eksCustomManagedKey:
@@ -115,7 +102,7 @@ Resources:
       Enabled: true
       KeyPolicy:
         Version: 2012-10-17
-        Id: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-cmk
+        Id: !Sub ${uniqueIdentifier}-${environment}-cmk
         Statement:
           - Sid: Allow Administration of Key
             Effect: Allow
@@ -137,7 +124,7 @@ Resources:
   eksControlSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupName: !Sub ${uniqueIdentifier}-${environment}-${applicationName}-eksControl-sg
+      GroupName: !Sub ${uniqueIdentifier}-${environment}-eksControl-sg
       GroupDescription: Security Group for EC2 instance
       VpcId: !Ref vpcId
       SecurityGroupIngress:
@@ -148,8 +135,156 @@ Resources:
       Tags:
         - Key: environment
           Value: !Ref environment
-        - Key: application
-          Value: !Ref applicationName
+
+
+  eksAlbServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${uniqueIdentifier}-${environment}-eks-albIngressController-role
+      ManagedPolicyArns:
+        - !Ref eksALBIngressControllerPolicy
+      Path: /eks-service-role/
+      AssumeRolePolicyDocument:
+        Fn::Sub:
+          - |
+            {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Principal": {
+                    "Federated": "arn:aws:iam::${aws_account}:oidc-provider/oidc.eks.us-east-1.amazonaws.com/id/5568D28330102AB96FF2E496687DBB83"
+                  },
+                  "Action": "sts:AssumeRoleWithWebIdentity",
+                  "Condition": {
+                    "StringEquals": {
+                      "oidc.eks.us-east-1.amazonaws.com/id/5568D28330102AB96FF2E496687DBB83:sub": "system:serviceaccount:kube-system:alb_service_account"
+                    }
+                  }
+                }
+              ]
+            }
+          - aws_account: !Sub ${AWS::AccountId}
+
+
+
+  eksALBIngressControllerPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub ${uniqueIdentifier}-${environment}-eks-albIngressController-policy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action:
+              - 'acm:DescribeCertificate'
+              - 'acm:ListCertificates'
+              - 'acm:GetCertificate'
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - elasticloadbalancing:AddListenerCertificates
+              - elasticloadbalancing:AddTags
+              - elasticloadbalancing:CreateListener
+              - elasticloadbalancing:CreateLoadBalancer
+              - elasticloadbalancing:CreateRule
+              - elasticloadbalancing:CreateTargetGroup
+              - elasticloadbalancing:DeleteListener
+              - elasticloadbalancing:DeleteLoadBalancer
+              - elasticloadbalancing:DeleteRule
+              - elasticloadbalancing:DeleteTargetGroup
+              - elasticloadbalancing:DeregisterTargets
+              - elasticloadbalancing:DescribeListenerCertificates
+              - elasticloadbalancing:DescribeListeners
+              - elasticloadbalancing:DescribeLoadBalancers
+              - elasticloadbalancing:DescribeLoadBalancerAttributes
+              - elasticloadbalancing:DescribeRules
+              - elasticloadbalancing:DescribeSSLPolicies
+              - elasticloadbalancing:DescribeTags
+              - elasticloadbalancing:DescribeTargetGroups
+              - elasticloadbalancing:DescribeTargetGroupAttributes
+              - elasticloadbalancing:DescribeTargetHealth
+              - elasticloadbalancing:ModifyListener
+              - elasticloadbalancing:ModifyLoadBalancerAttributes
+              - elasticloadbalancing:ModifyRule
+              - elasticloadbalancing:ModifyTargetGroup
+              - elasticloadbalancing:ModifyTargetGroupAttributes
+              - elasticloadbalancing:RegisterTargets
+              - elasticloadbalancing:RemoveListenerCertificates
+              - elasticloadbalancing:RemoveTags
+              - elasticloadbalancing:SetIpAddressType
+              - elasticloadbalancing:SetSecurityGroups
+              - elasticloadbalancing:SetSubnets
+              - elasticloadbalancing:SetWebAcl
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - ec2:AuthorizedSecurityGroupIngress
+              - ec2:CreateSecurityGroup
+              - ec2:CreateTags,
+              - ec2:DeleteTags,
+              - ec2:DeleteSecurityGroup,
+              - ec2:DescribeAccountAttributes
+              - ec2:DescribeAddresses
+              - ec2:DescribeInstances
+              - ec2:DescribeInstanceStatus
+              - ec2:DescribeInternetGateways
+              - ec2:DescribeNetworkInterfaces
+              - ec2:DescribeSecurityGroups
+              - ec2:DescribeSubnets
+              - ec2:DescribeTags
+              - ec2:DescribeVpcs
+              - ec2:ModifyInstanceAttribute
+              - ec2:ModifyNetworkInterfaceAttribute
+              - ec2:RevokeSecurityGroupIngress
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - iam:CreateServiceLinkedRole
+              - iam:GetServerCertificate
+              - iam:ListServerCertificates
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - cognito-idp:DescribeUserPoolClient
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - waf-regional:GetWebACLForResource
+              - "waf-regional:GetWebACL"
+              - "waf-regional:AssociateWebACL"
+              - "waf-regional:DisassociateWebACL"
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - "tag:GetResources"
+              - "tag:TagResources"
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - waf:GetWebACL
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - "wafv2:GetWebACL"
+              - "wafv2:GetWebACLForResource"
+              - "wafv2:AssociateWebACL"
+              - "wafv2:DisassociateWebACL"
+            Resource: '*'
+          - Effect: Allow
+            Action:
+              - "shield:DescribeProtection"
+              - "shield:GetSubscriptionState"
+              - "shield:DeleteProtection"
+              - "shield:CreateProtection"
+              - "shield:DescribeSubscription"
+              - "shield:ListProtections"
+            Resource: '*'
+
+
+
+
+
 
 
 Outputs:
