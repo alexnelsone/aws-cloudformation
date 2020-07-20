@@ -94,3 +94,11 @@ Resources:
                   - cloudformation:DescribeStacks
                 Resource:
                   - '*'
+              - Effect: Allow
+                Action:
+                 - apigateway:POST
+                 - apigateway:PATCH
+                 - apigateway:DELETE
+                 - apigateway:GET
+                Resource:
+                  - '*'
