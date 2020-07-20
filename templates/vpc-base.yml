@@ -24,23 +24,28 @@ Parameters:
   vpcCidrBlock:
     Description: The CIDR block to use for the vpc
     Type: String
+    Default: 10.0.0.0/16
     
   publicSubnet1CIDR:
     Description: CIDR to use for public subnet1
     Type: String
+    Default: 10.0.3.0/24
  
   publicSubnet2CIDR:
     Description: CIDR to use for public subnet2
     Type: String
+    Default: 10.0.4.0/24
     
     
   privateSubnet1CIDR:
     Description: CIDR to use for private subnet1
     Type: String
+    Default: 10.0.1.0/24
 
   privateSubnet2CIDR:
     Description: CIDR to use for private subnet2
     Type: String
+    Default: 10.0.2.0/24
 
   publicSubnetAZ1:
     Description: AZ to use for public subnet
@@ -99,7 +104,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
-      CidrBlock: !Ref publicSubnetAZ1
+      CidrBlock: !Ref publicSubnet1CIDR
       AvailabilityZone: !Ref publicSubnetAZ1
       Tags:
       - {Key: Name, Value: !Join [ "-" , [ !Ref uniqueIdentifier, !Ref environment, "Public-Subnet-1" ]]}
@@ -111,7 +116,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
-      CidrBlock: !Ref publicSubnetAZ2
+      CidrBlock: !Ref publicSubnet2CIDR
       AvailabilityZone: !Ref publicSubnetAZ1
       Tags:
       - {Key: Name, Value: !Join [ "-" , [ !Ref uniqueIdentifier, !Ref environment, "Public-Subnet-2" ]]}
@@ -123,7 +128,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
-      CidrBlock: !Ref privateSubnetAZ1
+      CidrBlock: !Ref privateSubnet1CIDR
       AvailabilityZone: !Ref privateSubnetAZ1
       Tags:
       - {Key: Name, Value: !Join [ "-" , [ !Ref uniqueIdentifier, "Private-Subnet-1" ]]}
@@ -136,7 +141,7 @@ Resources:
     Type: AWS::EC2::Subnet
     Properties:
       VpcId: !Ref VPC
-      CidrBlock: !Ref privateSubnetAZ2
+      CidrBlock: !Ref privateSubnet2CIDR
       AvailabilityZone: !Ref privateSubnetAZ2
       Tags:
       - {Key: Name, Value: !Join [ "-" , [ !Ref uniqueIdentifier, "Private-Subnet-2" ]]}
