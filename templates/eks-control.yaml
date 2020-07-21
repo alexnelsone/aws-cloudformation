@@ -57,7 +57,7 @@ Resources:
     DependsOn: eksServiceRole
     Type: AWS::EKS::Cluster
     Properties:
-      Name:  !Join [ "-", [ !Ref uniqueIdentifier, !Ref environment, "eks-cluster" ]]
+      Name:  !Join ["-", [!Ref uniqueIdentifier, !Ref environment, "eks-cluster", !Select [ "4", !Split [ "-", !Select [ "2", !Split [ "/", !Ref "AWS::StackId" ]]]]]]
       Version: !Ref kubernetesVersion
       RoleArn: !GetAtt eksServiceRole.Arn
       EncryptionConfig:
@@ -75,7 +75,7 @@ Resources:
   eksServiceRole:
     Type: 'AWS::IAM::Role'
     Properties:
-      RoleName: !Sub ${uniqueIdentifier}-${environment}-eks-service-role
+      RoleName: !Join ["-", [!Ref uniqueIdentifier, !Ref environment, "eks-service-role", !Select [ "4", !Split [ "-", !Select [ "2", !Split [ "/", !Ref "AWS::StackId" ]]]]]]
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -92,7 +92,7 @@ Resources:
   eksCustomManagedKeyAlias:
     Type: AWS::KMS::Alias
     Properties:
-      AliasName: !Sub alias/${uniqueIdentifier}-${environment}-cmk
+      AliasName: !Join ["/", ["alias", !Join ["-", [!Ref uniqueIdentifier, !Ref environment, "cmk", !Select [ "4", !Split [ "-", !Select [ "2", !Split [ "/", !Ref "AWS::StackId" ]]]]]]]]
       TargetKeyId: !Ref eksCustomManagedKey
 
   eksCustomManagedKey:
@@ -102,7 +102,7 @@ Resources:
       Enabled: true
       KeyPolicy:
         Version: 2012-10-17
-        Id: !Sub ${uniqueIdentifier}-${environment}-cmk
+        Id: !Join ["-", [!Ref uniqueIdentifier, !Ref environment, "cmk", !Select [ "4", !Split [ "-", !Select [ "2", !Split [ "/", !Ref "AWS::StackId" ]]]]]]
         Statement:
           - Sid: Allow Administration of Key
             Effect: Allow
@@ -124,7 +124,7 @@ Resources:
   eksControlSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupName: !Sub ${uniqueIdentifier}-${environment}-eksControl-sg
+      GroupName: !Join ["-", [!Ref uniqueIdentifier, !Ref environment, "eksControl-sg", !Select [ "4", !Split [ "-", !Select [ "2", !Split [ "/", !Ref "AWS::StackId" ]]]]]]
       GroupDescription: Security Group for EC2 instance
       VpcId: !Ref vpcId
       SecurityGroupIngress:
@@ -140,7 +140,7 @@ Resources:
   eksAlbServiceRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: !Sub ${uniqueIdentifier}-${environment}-eks-albIngressController-role
+      RoleName: !Join ["-", [!Ref uniqueIdentifier, !Ref environment, "eks-albIngressController-role", !Select [ "4", !Split [ "-", !Select [ "2", !Split [ "/", !Ref "AWS::StackId" ]]]]]]
       ManagedPolicyArns:
         - !Ref eksALBIngressControllerPolicy
       Path: /eks-service-role/
@@ -171,7 +171,7 @@ Resources:
   eksALBIngressControllerPolicy:
     Type: AWS::IAM::ManagedPolicy
     Properties:
-      ManagedPolicyName: !Sub ${uniqueIdentifier}-${environment}-eks-albIngressController-policy
+      ManagedPolicyName: !Join ["-", [!Ref uniqueIdentifier, !Ref environment, "eks-albIngressController-policy", !Select [ "4", !Split [ "-", !Select [ "2", !Split [ "/", !Ref "AWS::StackId" ]]]]]]
       PolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -293,3 +293,4 @@ Outputs:
     Value: !GetAtt eksServiceRole.Arn
     Export:
       Name: !Sub "${AWS::StackName}-RoleArn"
+

@@ -93,7 +93,7 @@ Resources:
       DiskSize: 40
       InstanceTypes:
         - !Ref nodeGroupInstanceType
-      NodegroupName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref environment, !Ref applicationName, "nodegroup" ]]
+      NodegroupName: !Join ["-", [!Ref uniqueIdentifier, !Ref environment, "nodegroup", !Select [ "4", !Split [ "-", !Select [ "2", !Split [ "/", !Ref "AWS::StackId" ]]]]]]
       NodeRole: !GetAtt NodeRole.Arn
       ScalingConfig:
         MinSize: !Ref nodeGroupMinSize
@@ -111,7 +111,7 @@ Resources:
   NodeRole:
     Type: 'AWS::IAM::Role'
     Properties:
-      RoleName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref environment, !Ref applicationName, "NodeInstanceRole" ]]
+      RoleName: !Join ["-", [!Ref uniqueIdentifier, !Ref environment, "NodeInstanceRole", !Select [ "4", !Split [ "-", !Select [ "2", !Split [ "/", !Ref "AWS::StackId" ]]]]]]
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
@@ -135,7 +135,7 @@ Resources:
   ALBIngressPolicy:
     Type: AWS::IAM::Policy
     Properties:
-      PolicyName: !Join [ "-", [ !Ref uniqueIdentifier, !Ref environment, !Ref applicationName, "ALBIngressPolicy" ]]
+      PolicyName: !Join ["-", [!Ref uniqueIdentifier, !Ref environment, "ALBIngressPolicy", !Select [ "4", !Split [ "-", !Select [ "2", !Split [ "/", !Ref "AWS::StackId" ]]]]]]
       Roles:
         - Ref: NodeRole
       PolicyDocument:
