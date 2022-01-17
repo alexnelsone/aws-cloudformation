@@ -1,0 +1,25 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description:  Creates the CloudWatchAgentAdminRole that can be used to provide an instance with the ability to write
+        the CloudWatch configuration to the parameterstore
+
+Parameters:
+  pNamespace:
+    Type: String
+    Description: 'a unique organization identifier. This will be the prefix for the created resources.'
+    Default: 'none'
+
+
+Resources:
+  rCloudWatchAgentAdminRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub ${pNamespace}-CloudWatchAgentAdminRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'ec2.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/CloudWatchAgentAdminPolicy
